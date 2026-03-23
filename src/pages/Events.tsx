@@ -6,119 +6,11 @@ import {
   Code2, Users, Rocket, List, Clock,
 } from "lucide-react";
 import { useReveal } from "@/hooks/useReveal";
-import EventIllustration from "@/components/EventIllustration";
-import type { EventType } from "@/data/events";
+import { useEvents } from "@/hooks/useDB";
 
 // ─── DATA ────────────────────────────────────────────────────
-const ALL_EVENTS = [
-  {
-    id: 1, index: 1, slug: "gen-ai-study-jams-2025",
-    type: "Study Jam" as EventType, month: "September", year: "2025",
-    title: "Gen AI Study Jams", subtitle: "Season 2025",
-    date: "Sep 14–15, 2025", location: "APSIT, Thane",
-    attendance: "80+", duration: "2 Days", format: "In-Person",
-    description: "A 2-day Google-curated dive into Generative AI, Gemini API, and Responsible AI. Hands-on labs and peer learning.",
-    topics: ["Gemini API", "Prompt Engineering", "Responsible AI", "Multimodal AI"],
-    typeColor: "#FBBC04", bannerColor1: "#FBBC04", bannerColor2: "#F59F00",
-    isFeatured: false, isInterCollege: false,
-    keywordLogos: { "Gemini API": "gemini", "Prompt Engineering": "brain" } as Record<string, string>,
-    doodle: "notebook", size: "narrow" as const, accentPattern: "dots",
-  },
-  {
-    id: 2, index: 2, slug: "flutter-forward",
-    type: "Workshop" as EventType, month: "October", year: "2025",
-    title: "Flutter Forward", subtitle: "Building Cross-Platform Apps",
-    date: "Oct 4, 2025", location: "APSIT, Thane",
-    attendance: "60+", duration: "1 Day", format: "In-Person",
-    description: "Full-day hands-on Flutter workshop from setting up Dart to deploying on Android and iOS.",
-    topics: ["Dart", "Widget Tree", "Firebase", "App Deployment"],
-    typeColor: "#4285F4", bannerColor1: "#4285F4", bannerColor2: "#1A73E8",
-    isFeatured: false, isInterCollege: false,
-    keywordLogos: { Flutter: "flutter", Firebase: "firebase", Dart: "dart" } as Record<string, string>,
-    doodle: "phone", size: "narrow" as const, accentPattern: "grid",
-  },
-  {
-    id: 3, index: 3, slug: "dsa-masterclass",
-    type: "Session" as EventType, month: "October", year: "2025",
-    title: "DSA Masterclass", subtitle: "Crack the Coding Interview",
-    date: "Oct 18, 2025", location: "Pillai College, Panvel",
-    attendance: "120+", duration: "4 Hours", format: "Inter-College",
-    description: "Inter-college session on Data Structures & Algorithms for placement prep with live problem-solving.",
-    topics: ["Arrays & Strings", "Trees & Graphs", "Dynamic Programming", "System Design"],
-    typeColor: "#34A853", bannerColor1: "#34A853", bannerColor2: "#1E8E3E",
-    isFeatured: false, isInterCollege: true,
-    keywordLogos: { "Dynamic Programming": "code", "System Design": "architecture" } as Record<string, string>,
-    doodle: "graph", size: "wide" as const, accentPattern: "circuit",
-  },
-  {
-    id: 4, index: 4, slug: "hackapsit-2025",
-    type: "Hackathon" as EventType, month: "November", year: "2025",
-    title: "HackAPSIT 2025", subtitle: "24 Hours of Innovation",
-    date: "Nov 1–2, 2025", location: "APSIT, Thane",
-    attendance: "200+", duration: "24 Hours", format: "In-Person",
-    description: "APSIT's flagship 24-hour hackathon. 50+ teams from 5 colleges across AI/ML, Web3, Sustainability, and Health Tech tracks.",
-    topics: ["AI/ML", "Web3", "Sustainability", "Health Tech"],
-    typeColor: "#EA4335", bannerColor1: "#EA4335", bannerColor2: "#C62828",
-    isFeatured: true, isInterCollege: false,
-    keywordLogos: { "AI/ML": "tensorflow", Web3: "blockchain" } as Record<string, string>,
-    doodle: "lightning", size: "featured" as const, accentPattern: "sparks",
-  },
-  {
-    id: 5, index: 5, slug: "tech-winter-bootcamp",
-    type: "Bootcamp" as EventType, month: "November", year: "2025",
-    title: "Tech Winter Bootcamp", subtitle: "Full Stack Foundations",
-    date: "Nov 22–24, 2025", location: "APSIT, Thane",
-    attendance: "90+", duration: "3 Days", format: "In-Person",
-    description: "3-day intensive full stack bootcamp from HTML/CSS to React, Node.js, and deployment.",
-    topics: ["React", "Node.js", "Git & GitHub", "Deployment"],
-    typeColor: "#7C3AED", bannerColor1: "#7C3AED", bannerColor2: "#5B21B6",
-    isFeatured: false, isInterCollege: false,
-    keywordLogos: { React: "react", "Node.js": "nodejs", Git: "git" } as Record<string, string>,
-    doodle: "rocket", size: "narrow" as const, accentPattern: "dots",
-  },
-  {
-    id: 6, index: 6, slug: "cloud-study-bootcamp",
-    type: "Workshop" as EventType, month: "December", year: "2025",
-    title: "Cloud Study Bootcamp", subtitle: "Google Cloud Fundamentals",
-    date: "Dec 6, 2025", location: "MGM College, Navi Mumbai",
-    attendance: "75+", duration: "1 Day", format: "Inter-College",
-    description: "Inter-college Google Cloud workshop covering GCP core services, Cloud Functions, and Vertex AI.",
-    topics: ["Google Cloud", "Cloud Functions", "BigQuery", "Vertex AI"],
-    typeColor: "#4285F4", bannerColor1: "#4285F4", bannerColor2: "#1A73E8",
-    isFeatured: false, isInterCollege: true,
-    keywordLogos: { "Google Cloud": "gcp", "Vertex AI": "vertexai", BigQuery: "bigquery" } as Record<string, string>,
-    doodle: "cloud", size: "wide" as const, accentPattern: "grid",
-  },
-  {
-    id: 7, index: 7, slug: "open-source-101",
-    type: "Session" as EventType, month: "December", year: "2025",
-    title: "Open Source 101", subtitle: "Your First Pull Request",
-    date: "Dec 20, 2025", location: "APSIT, Thane",
-    attendance: "55+", duration: "3 Hours", format: "Evening Session",
-    description: "Demystifying open-source: Git workflow, PR etiquette, and getting started with Google Summer of Code.",
-    topics: ["Git Workflow", "Pull Requests", "GitHub Actions", "GSOC"],
-    typeColor: "#34A853", bannerColor1: "#34A853", bannerColor2: "#1E8E3E",
-    isFeatured: false, isInterCollege: false,
-    keywordLogos: { GSOC: "gsoc", "GitHub Actions": "github" } as Record<string, string>,
-    doodle: "branch", size: "narrow" as const, accentPattern: "circuit",
-  },
-  {
-    id: 8, index: 8, slug: "android-dev-day",
-    type: "Workshop" as EventType, month: "January", year: "2026",
-    title: "Android Dev Day", subtitle: "Kotlin & Jetpack Compose",
-    date: "Jan 11, 2026", location: "APSIT, Thane",
-    attendance: "65+", duration: "1 Day", format: "In-Person",
-    description: "Modern Android development using Kotlin and Jetpack Compose. Built a complete news reader app from scratch.",
-    topics: ["Kotlin", "Jetpack Compose", "Material 3", "ViewModel"],
-    typeColor: "#4285F4", bannerColor1: "#4285F4", bannerColor2: "#1A73E8",
-    isFeatured: false, isInterCollege: false,
-    keywordLogos: { Kotlin: "kotlin", "Jetpack Compose": "android" } as Record<string, string>,
-    doodle: "android", size: "narrow" as const, accentPattern: "dots",
-  },
-];
-
-type EventData = typeof ALL_EVENTS[number];
-
+type EventData = any;
+// ALL_EVENTS is now dynamically loaded from DB in the component
 const FILTER_OPTIONS = [
   { label: "All Events", value: "All", icon: LayoutGrid, color: "#111111" },
   { label: "Hackathons", value: "Hackathon", icon: Zap, color: "#EA4335" },
@@ -458,17 +350,24 @@ const ChronicleCard = ({ event }: { event: EventData }) => {
       onClick={() => navigate(`/events/${event.slug}`)}
     >
       {/* BANNER */}
-      <div className="relative overflow-hidden"
+      <div className="relative overflow-hidden bg-[#111]"
         style={{
           height: isFeatured ? "clamp(200px, 30vw, 300px)" : isWide ? "clamp(160px, 22vw, 220px)" : "clamp(140px, 20vw, 180px)",
-          background: `linear-gradient(145deg, ${event.bannerColor1}, ${event.bannerColor2})`,
+          ...(event.imageUrl 
+                ? { backgroundImage: `url(${event.imageUrl})`, backgroundPosition: 'center', backgroundSize: 'cover' }
+                : { background: `linear-gradient(145deg, ${event.bannerColor1}, ${event.bannerColor2})` }
+             )
         }}>
-        <motion.div className="absolute pointer-events-none rounded-full hidden sm:block"
-          style={{ width: 280, height: 280, background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 65%)", left: `${mouse.x}%`, top: `${mouse.y}%`, transform: "translate(-50%, -50%)", filter: "blur(24px)" }}
-          animate={{ opacity: hovered ? 1 : 0 }} transition={{ duration: 0.2 }}/>
-        <EventDoodle type={event.doodle}/>
-        <span className="absolute bottom-0 right-3 font-syne font-black text-white/[0.07] leading-none select-none pointer-events-none"
-          style={{ fontSize: "clamp(5rem, 12vw, 9rem)" }}>
+        {!event.imageUrl && (
+          <>
+            <motion.div className="absolute pointer-events-none rounded-full hidden sm:block"
+              style={{ width: 280, height: 280, background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 65%)", left: `${mouse.x}%`, top: `${mouse.y}%`, transform: "translate(-50%, -50%)", filter: "blur(24px)" }}
+              animate={{ opacity: hovered ? 1 : 0 }} transition={{ duration: 0.2 }}/>
+            <EventDoodle type={event.doodle}/>
+          </>
+        )}
+        <span className="absolute bottom-0 right-3 font-syne font-black text-white/[0.15] leading-none select-none pointer-events-none drop-shadow-md"
+          style={{ fontSize: "clamp(5rem, 12vw, 9rem)", zIndex: 5 }}>
           {String(event.index).padStart(2, "0")}
         </span>
         <div className="absolute top-4 left-4 right-4 flex items-start justify-between z-10 gap-2">
@@ -508,8 +407,8 @@ const ChronicleCard = ({ event }: { event: EventData }) => {
           {renderDescriptionWithTooltips(event.description, event.keywordLogos)}
         </p>
         <div className="flex flex-wrap gap-1.5 mt-3">
-          {event.topics.map(t => {
-            const logoKey = Object.entries(event.keywordLogos || {}).find(([k]) => k === t)?.[1];
+          {event.topics.map((t: string) => {
+            const logoKey = Object.entries(event.keywordLogos || {}).find(([k]) => k === t)?.[1] as string | undefined;
             return (
               <span key={t} className="font-dm text-xs px-2.5 py-1 rounded-full font-medium cursor-default transition-all hover:scale-105"
                 style={{ background: `${event.typeColor}12`, color: event.typeColor }}>
@@ -596,13 +495,57 @@ export default function Events() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"chronicle" | "list">("chronicle");
 
-  const filtered = activeFilter === "All" ? ALL_EVENTS : ALL_EVENTS.filter(e => e.type === activeFilter);
-  const months = ["September", "October", "November", "December", "January"];
-  const grouped = months.reduce((acc, m) => {
-    const evs = filtered.filter(e => e.month === m);
-    if (evs.length) acc.push({ month: m, year: evs[0].year, events: evs });
+  const { data: dbEvents = [], isLoading } = useEvents();
+
+  const allEvents = Array.isArray(dbEvents) ? dbEvents.map((e, index) => {
+    let doodle = "notebook";
+    if (e.type === "Hackathon") doodle = "lightning";
+    else if (e.type === "Workshop") doodle = "phone";
+    else if (e.type === "Session") doodle = "branch";
+    else if (e.type === "Bootcamp") doodle = "rocket";
+
+    return {
+      id: e.id,
+      index: index + 1,
+      slug: e.slug,
+      type: e.type,
+      month: e.month || "TBD",
+      year: e.date_start ? e.date_start.substring(0, 4) : new Date().getFullYear().toString(),
+      title: e.title,
+      subtitle: e.description?.split('\n')[0] || "",
+      date: e.date_display || e.short_date || "TBD",
+      location: e.location || "TBA",
+      attendance: e.attendance || "-",
+      duration: e.duration || "TBD",
+      format: e.format || "In-Person",
+      description: e.description || "",
+      topics: Array.isArray(e.topics) ? e.topics : [],
+      typeColor: e.type_color || e.badge_color || "#4285F4",
+      bannerColor1: e.banner_color_1 || e.type_color || "#4285F4",
+      bannerColor2: e.banner_color_2 || "#1A73E8",
+      isFeatured: e.is_featured,
+      isInterCollege: e.is_inter_college,
+      keywordLogos: {},
+      doodle,
+      size: e.is_featured ? "featured" : "narrow",
+      imageUrl: e.image_url || null,
+    };
+  }) : [];
+
+  const CURRENT_YEAR = new Date().getFullYear();
+  const allowedYears = [CURRENT_YEAR.toString(), (CURRENT_YEAR - 1).toString()];
+  
+  const yearlyEvents = allEvents.filter(e => allowedYears.includes(e.year));
+  const filtered = activeFilter === "All" ? yearlyEvents : yearlyEvents.filter(e => e.type === activeFilter);
+  
+  const groupedTasks = filtered.reduce((acc, event) => {
+    const key = `${event.month} ${event.year}`;
+    if (!acc.has(key)) acc.set(key, { month: event.month, year: event.year, events: [] });
+    acc.get(key).events.push(event);
     return acc;
-  }, [] as { month: string; year: string; events: EventData[] }[]);
+  }, new Map());
+  
+  const grouped = Array.from(groupedTasks.values());
 
   return (
     <div className="graph-bg min-h-screen">
@@ -613,7 +556,7 @@ export default function Events() {
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-1" style={{ WebkitOverflowScrolling: "touch" } as any}>
           {FILTER_OPTIONS.map((f, i) => {
             const isActive = activeFilter === f.value;
-            const count = f.value === "All" ? filtered.length : ALL_EVENTS.filter(e => e.type === f.value).length;
+            const count = f.value === "All" ? yearlyEvents.length : yearlyEvents.filter(e => e.type === f.value).length;
             return (
               <motion.button key={f.value}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 + i * 0.06 }}

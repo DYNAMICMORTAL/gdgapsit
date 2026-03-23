@@ -3,16 +3,28 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, CalendarDays, Users, Image as ImageIcon, Settings, LogOut,
   Plus, Pencil, Trash2, X, TrendingUp, Eye, EyeOff, Search, UserPlus, Linkedin, Mail,
-  CalendarPlus, ImagePlus as ImagePlusIcon, ExternalLink, Globe, Zap, BarChart3, ToggleLeft, ToggleRight
+  CalendarPlus, ImagePlus as ImagePlusIcon, ExternalLink, Globe, Zap, BarChart3, ToggleLeft, ToggleRight,
+  Calendar as CalendarIcon, CheckCircle, Radio, MapPin, ArrowRight,
+  Save,
+  Check
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { GDGLogo } from "@/components/Doodles";
-import { events as initialEvents } from "@/data/events";
-import type { Event } from "@/data/events";
+import { api } from "@/lib/api";
+import {
+  useAdminEvents, useAdminStats, useDeleteEvent, useUpdateEvent, useCreateEvent,
+  useToggleQuiz, useTeam, useDeleteMember, useUpdateMember, useCreateMember,
+  useSettings, useSaveSettings,
+} from "@/hooks/useDB";
+import { useQueryClient } from "@tanstack/react-query";
 import { CountUp } from "@/components/AnimationUtils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
-// ========== AUTH GATE ==========
-const AdminAuthGate = ({ onAuth }: { onAuth: (v: boolean) => void }) => {
+
+const AdminAuthGate = ({ onAuth }: { onAuth: (token: string) => void }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -22,15 +34,17 @@ const AdminAuthGate = ({ onAuth }: { onAuth: (v: boolean) => void }) => {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
-    await new Promise(r => setTimeout(r, 900));
-    if (email === "admin@gdgapsit.com" && password === "gdgapsit2025") {
-      localStorage.setItem("gdg_admin_auth", "true");
-      onAuth(true);
-    } else {
-      setError("Invalid credentials. Try admin@gdgapsit.com");
+    try {
+      const { token } = await api.login(email, password);
+      localStorage.setItem("gdg_admin_token", token);
+      onAuth(token);
+    } catch (e: any) {
+      setError(e.message || "Invalid credentials");
+    } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center relative overflow-hidden">
@@ -77,19 +91,27 @@ const AdminAuthGate = ({ onAuth }: { onAuth: (v: boolean) => void }) => {
   );
 };
 
-// ========== SIDEBAR ==========
-const QuizToggleRow = ({ event }: { event: typeof ALL_EVENTS_ADMIN[0] }) => {
-  const [enabled, setEnabled] = useState(false);
+// ========== AUTH GATE ==========
+
+// ========== QUIZ TOGGLE ROW - uses DB ==========
+const QuizToggleRow = ({ event }: { event: any }) => {
+  const toggleMutation = useToggleQuiz();
+  const [enabled, setEnabled] = useState(event.quiz_enabled ?? false);
+  const handleToggle = () => {
+    const next = !enabled;
+    setEnabled(next);
+    toggleMutation.mutate({ slug: event.slug, enabled: next });
+  };
   return (
     <div className="flex items-center justify-between py-3 px-4 rounded-[12px] bg-foreground/[0.02] hover:bg-foreground/[0.04] transition-colors">
       <div className="flex items-center gap-3">
-        <div className="w-2.5 h-2.5 rounded-full" style={{ background: event.typeColor }} />
+        <div className="w-2.5 h-2.5 rounded-full" style={{ background: event.type_color ?? event.typeColor ?? '#4285F4' }} />
         <div>
           <span className="font-dm font-medium text-ink text-sm">{event.title}</span>
-          <span className="font-caveat text-xs ml-2" style={{ color: event.typeColor }}>{event.type}</span>
+          <span className="font-caveat text-xs ml-2" style={{ color: event.type_color ?? event.typeColor ?? '#4285F4' }}>{event.type}</span>
         </div>
       </div>
-      <button onClick={() => setEnabled(!enabled)} className="flex items-center gap-2 transition-colors">
+      <button onClick={handleToggle} className="flex items-center gap-2 transition-colors" disabled={toggleMutation.isPending}>
         {enabled ? (
           <ToggleRight size={28} className="text-[#34A853]" />
         ) : (
@@ -102,6 +124,8 @@ const QuizToggleRow = ({ event }: { event: typeof ALL_EVENTS_ADMIN[0] }) => {
     </div>
   );
 };
+
+
 
 const sidebarItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -137,57 +161,64 @@ const eventTypeDistribution = [
   { name: "Bootcamp", value: 1, color: "#34A853" },
 ];
 
-const teamMembers = [
-  { id: "1", seed: "Emery", name: "Riya Sharma", role: "GDG Lead", roleColor: "#4285F4", bio: "Final year CS student and the driving force behind GDG on Campus APSIT.", isLead: true, linkedin: "#", email: "riya@gdgapsit.com" },
-  { id: "2", seed: "Eden", name: "Arjun Mehta", role: "Tech Head", roleColor: "#EA4335", bio: "Web dev wizard & open-source contributor.", isLead: false, linkedin: "#", email: "arjun@gdgapsit.com" },
-  { id: "3", seed: "Aiden", name: "Priya Nair", role: "Tech Head", roleColor: "#EA4335", bio: "Android & Flutter specialist.", isLead: false, linkedin: "#", email: "" },
-  { id: "4", seed: "Brian", name: "Zara Khan", role: "Literature Head", roleColor: "#FBBC04", bio: "Storyteller turned techie.", isLead: false, linkedin: "", email: "zara@gdgapsit.com" },
-  { id: "5", seed: "Kingston", name: "Dev Patel", role: "Cinematographer", roleColor: "#34A853", bio: "Captures every GDG moment.", isLead: false, linkedin: "#", email: "" },
-  { id: "6", seed: "Avery", name: "Mihir Shah", role: "Operations Head", roleColor: "#4285F4", bio: "The backbone of logistics.", isLead: false, linkedin: "#", email: "" },
-  { id: "7", seed: "Riley", name: "Ananya Joshi", role: "Creatives Head", roleColor: "#EA4335", bio: "Designs every poster and banner.", isLead: false, linkedin: "", email: "ananya@gdgapsit.com" },
-];
 
-const recentActivity = [
-  { icon: Plus, color: "#34A853", text: 'Event "Android Dev Day" published', time: "Jan 8, 2026", tag: "Event" },
-  { icon: Pencil, color: "#4285F4", text: 'Team member "Ananya Joshi" updated', time: "Jan 5, 2026", tag: "Member" },
-  { icon: ImageIcon, color: "#FBBC04", text: "3 new gallery photos added", time: "Dec 22, 2025", tag: "Gallery" },
-  { icon: Zap, color: "#EA4335", text: "HackAPSIT 2025 event concluded", time: "Nov 3, 2025", tag: "Event" },
-  { icon: Users, color: "#34A853", text: 'Extended team member "Neel Mehta" added', time: "Oct 28, 2025", tag: "Member" },
-  { icon: Globe, color: "#4285F4", text: "GDG Community link updated for Flutter Forward", time: "Oct 2, 2025", tag: "Event" },
-];
 
-const ALL_EVENTS_ADMIN = [
-  { title: "Gen AI Study Jams — Season 2025", type: "Study Jam", shortDate: "Sep 14–15", attendance: "80+", typeColor: "#FBBC04" },
-  { title: "Flutter Forward", type: "Workshop", shortDate: "Oct 4", attendance: "60+", typeColor: "#4285F4" },
-  { title: "DSA Masterclass", type: "Session", shortDate: "Oct 18", attendance: "120+", typeColor: "#34A853" },
-  { title: "HackAPSIT 2025", type: "Hackathon", shortDate: "Nov 1–2", attendance: "200+", typeColor: "#EA4335" },
-  { title: "Tech Winter Bootcamp", type: "Bootcamp", shortDate: "Nov 22–24", attendance: "90+", typeColor: "#7C3AED" },
-];
+const getEventStatus = (event: any) => {
+  if (!event.date_start) return { label: 'Upcoming', color: '#4285F4', bg: '#4285F415', icon: <CalendarIcon size={12} /> };
+
+  // Parse the stored date_start ('YYYY-MM-DD') reliably tracking UTC Midnight offsets locally
+  const start = new Date(event.date_start + 'T00:00:00').getTime();
+  const end = event.date_end ? new Date(event.date_end + 'T23:59:59').getTime() : start + (24 * 60 * 60 * 1000);
+  const now = Date.now();
+
+  if (now < start) return { label: 'Upcoming', color: '#4285F4', bg: '#4285F415', icon: <CalendarIcon size={12} /> };
+  if (now > end) return { label: 'Concluded', color: '#34A853', bg: '#34A85315', icon: <CheckCircle size={12} /> };
+  return { label: 'Live Now', color: '#EA4335', bg: '#EA433515', icon: <Radio size={12} className="animate-pulse" /> };
+};
 
 // ========== MAIN ADMIN ==========
 const Admin = () => {
-  const [isAuth, setIsAuth] = useState(() => localStorage.getItem("gdg_admin_auth") === "true");
+  const [isAuth, setIsAuth] = useState(() => !!localStorage.getItem("gdg_admin_token"));
   const [tab, setTab] = useState("dashboard");
-  const [eventsData, setEventsData] = useState<Event[]>(initialEvents);
-  const [members, setMembers] = useState(teamMembers);
   const [showEventModal, setShowEventModal] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
-  const [editingMember, setEditingMember] = useState<typeof teamMembers[0] | null>(null);
+  const [editingMember, setEditingMember] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  if (!isAuth) return <AdminAuthGate onAuth={setIsAuth} />;
+  // DB hooks
+  const { data: eventsData = [], isLoading: eventsLoading } = useAdminEvents();
+
+  const currentEventStats = {
+    total: eventsData?.length || 0,
+    upcoming: (eventsData || []).filter((e: any) => getEventStatus(e).label === 'Upcoming').length,
+    concluded: (eventsData || []).filter((e: any) => getEventStatus(e).label === 'Concluded').length
+  };
+
+  const filteredEvents = (eventsData || []).filter((e: any) =>
+    (e.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (e.type || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const { data: stats } = useAdminStats();
+  const { data: membersData = [] } = useTeam();
+  const { data: settingsData = {} } = useSettings();
+  const deleteEvent = useDeleteEvent();
+  const updateEvent = useUpdateEvent();
+  const createEvent = useCreateEvent();
+  const deleteMember = useDeleteMember();
+  const updateMember = useUpdateMember();
+  const createMember = useCreateMember();
+  const saveSettings = useSaveSettings();
+
+  if (!isAuth) return <AdminAuthGate onAuth={(token) => { setIsAuth(true); }} />;
 
   const handleLogout = () => {
-    localStorage.removeItem("gdg_admin_auth");
-    localStorage.removeItem("gdg-admin-auth");
+    localStorage.removeItem("gdg_admin_token");
     setIsAuth(false);
   };
 
-  const handleDeleteEvent = (slug: string) => setEventsData(prev => prev.filter(e => e.slug !== slug));
-  const handleDeleteMember = (id: string) => setMembers(prev => prev.filter(m => m.id !== id));
-
-  const filteredEvents = eventsData.filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const handleDeleteEvent = (slug: string) => deleteEvent.mutate(slug);
+  const handleDeleteMember = (id: number) => deleteMember.mutate(id);
 
   const quickActions = [
     { label: "Add New Event", icon: CalendarPlus, color: "#4285F4", onClick: () => { setTab("events"); setEditingEvent(null); setShowEventModal(true); } },
@@ -203,9 +234,8 @@ const Admin = () => {
         <div className="flex gap-2 overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: "touch" }}>
           {sidebarItems.map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-full font-dm font-medium text-sm whitespace-nowrap flex-shrink-0 active:scale-95 transition-all ${
-                tab === item.id ? "bg-[#4285F4] text-white" : "bg-foreground/[0.05] text-[#6B6B6B]"
-              }`}>
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full font-dm font-medium text-sm whitespace-nowrap flex-shrink-0 active:scale-95 transition-all ${tab === item.id ? "bg-[#4285F4] text-white" : "bg-foreground/[0.05] text-[#6B6B6B]"
+                }`}>
               <item.icon size={13} />
               {item.label}
             </button>
@@ -225,9 +255,8 @@ const Admin = () => {
         <nav className="flex-1 p-4 space-y-1">
           {sidebarItems.map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-[10px] font-dm text-sm transition-all text-left ${
-                tab === item.id ? "bg-[#4285F4] text-white shadow-[0_4px_12px_rgba(66,133,244,0.3)]" : "text-ink-muted hover:bg-foreground/[0.04] hover:text-ink"
-              }`}>
+              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-[10px] font-dm text-sm transition-all text-left ${tab === item.id ? "bg-[#4285F4] text-white shadow-[0_4px_12px_rgba(66,133,244,0.3)]" : "text-ink-muted hover:bg-foreground/[0.04] hover:text-ink"
+                }`}>
               <item.icon size={16} />
               {item.label}
             </button>
@@ -305,18 +334,22 @@ const Admin = () => {
                         <h2 className="font-syne font-bold text-ink text-lg">Recent Activity</h2>
                         <span className="font-dm text-ink-muted text-xs">Last 90 days</span>
                       </div>
-                      {recentActivity.map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 py-3 border-b border-foreground/[0.04] last:border-0">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${item.color}12` }}>
-                            <item.icon size={14} style={{ color: item.color }} />
+                      <div className="space-y-3">
+                        {[
+                          { text: "New event published", time: "2 hours ago", tag: "Event" },
+                          { text: "Team member added", time: "1 day ago", tag: "Team" },
+                          { text: "Gallery updated", time: "3 days ago", tag: "Gallery" },
+                          { text: "Quiz enabled for Gen AI Jams", time: "5 days ago", tag: "Quiz" },
+                        ].map(item => (
+                          <div key={item.text} className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-dm text-sm text-ink truncate">{item.text}</p>
+                              <p className="font-dm-mono text-xs text-ink-muted mt-0.5">{item.time}</p>
+                            </div>
+                            <span className="font-dm text-[10px] px-2 py-0.5 rounded-full bg-foreground/[0.04] text-ink-muted flex-shrink-0">{item.tag}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-dm text-sm text-ink truncate">{item.text}</p>
-                            <p className="font-dm-mono text-xs text-ink-muted mt-0.5">{item.time}</p>
-                          </div>
-                          <span className="font-dm text-[10px] px-2 py-0.5 rounded-full bg-foreground/[0.04] text-ink-muted flex-shrink-0">{item.tag}</span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
 
                     {/* Team Snapshot */}
@@ -326,20 +359,12 @@ const Admin = () => {
                         <button onClick={() => setTab("team")} className="font-dm text-[#4285F4] text-sm hover:underline">Manage →</button>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { seed: "Emery", name: "Riya Sharma", role: "GDG Lead", color: "#4285F4" },
-                          { seed: "Eden", name: "Arjun Mehta", role: "Tech Head", color: "#EA4335" },
-                          { seed: "Aiden", name: "Priya Nair", role: "Tech Head", color: "#EA4335" },
-                          { seed: "Brian", name: "Zara Khan", role: "Literature", color: "#FBBC04" },
-                          { seed: "Kingston", name: "Dev Patel", role: "Cinemat.", color: "#34A853" },
-                          { seed: "Avery", name: "Mihir Shah", role: "Operations", color: "#4285F4" },
-                          { seed: "Riley", name: "Ananya Joshi", role: "Creatives", color: "#EA4335" },
-                        ].map(m => (
-                          <div key={m.seed} className="flex items-center gap-2.5 p-2 rounded-[10px] hover:bg-foreground/[0.02] transition-colors">
-                            <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${m.seed}`} className="w-9 h-9 rounded-full border-2 bg-white" style={{ borderColor: m.color }} alt={m.name} />
+                        {(membersData as any[]).slice(0, 6).map((m: any) => (
+                          <div key={m.id ?? m.name} className="flex items-center gap-2.5 p-2 rounded-[10px] hover:bg-foreground/[0.02] transition-colors">
+                            <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${m.dicebear_seed ?? m.name}`} className="w-9 h-9 rounded-full border-2 bg-white" style={{ borderColor: m.role_color ?? '#4285F4' }} alt={m.name} />
                             <div className="min-w-0">
                               <p className="font-dm font-medium text-ink text-xs truncate">{m.name}</p>
-                              <p className="font-caveat text-xs" style={{ color: m.color }}>{m.role}</p>
+                              <p className="font-caveat text-xs" style={{ color: m.role_color ?? '#4285F4' }}>{m.role}</p>
                             </div>
                           </div>
                         ))}
@@ -356,24 +381,29 @@ const Admin = () => {
                     <div className="overflow-x-auto"><table className="w-full min-w-[500px]">
                       <thead>
                         <tr className="border-b border-foreground/[0.06]">
-                          {["Event", "Type", "Date", "Attendance"].map(h => (
+                          {["Event", "Status", "Date"].map(h => (
                             <th key={h} className="text-left py-2 font-dm font-semibold text-xs text-ink-muted uppercase tracking-widest">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {ALL_EVENTS_ADMIN.map(event => (
-                          <tr key={event.title} className="border-b border-foreground/[0.03] last:border-0">
-                            <td className="py-3 font-dm text-sm text-ink">{event.title}</td>
-                            <td className="py-3">
-                              <span className="font-caveat font-bold text-xs px-2 py-0.5 rounded-full" style={{ background: `${event.typeColor}15`, color: event.typeColor }}>
-                                {event.type}
-                              </span>
-                            </td>
-                            <td className="py-3 font-dm text-sm text-ink-muted">{event.shortDate}</td>
-                            <td className="py-3 font-dm-mono text-sm text-ink">{event.attendance}</td>
-                          </tr>
-                        ))}
+                        {(eventsData as any[]).slice(0, 5).map((event: any) => {
+                          const status = getEventStatus(event);
+                          return (
+                            <tr key={event.slug} className="border-b border-foreground/[0.03] last:border-0 hover:bg-foreground/[0.01]">
+                              <td className="py-3 px-2 font-dm text-sm text-ink flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ background: event.badgeColor || '#4285F4' }} />
+                                {event.title}
+                              </td>
+                              <td className="py-3 px-2">
+                                <span className="font-dm font-bold flex items-center w-max gap-1 text-[11px] px-2 py-0.5 rounded-full" style={{ background: status.bg, color: status.color }}>
+                                  {status.icon} {status.label}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 font-dm text-sm text-ink-muted">{event.short_date ?? event.shortDate ?? '—'}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table></div>
                   </div>
@@ -382,67 +412,83 @@ const Admin = () => {
 
               {/* ═══════ EVENTS ═══════ */}
               {tab === "events" && (
-                <div>
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="flex-1 bg-white rounded-[12px] border border-foreground/[0.06] flex items-center gap-3 px-4 py-3 shadow-sm">
-                      <Search size={15} className="text-ink-muted" />
-                      <input placeholder="Search events..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        className="font-dm text-sm text-ink bg-transparent outline-none flex-1" />
+                <div className="pb-10">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h1 className="font-syne font-black text-ink text-2xl">Events Workspace</h1>
+                      <div className="flex items-center gap-3 mt-2 font-dm text-sm text-ink-muted">
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#EA4335]"></span> {currentEventStats.total} Total</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#4285F4]"></span> {currentEventStats.upcoming} Upcoming</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#34A853]"></span> {currentEventStats.concluded} Concluded</span>
+                      </div>
                     </div>
-                    <button onClick={() => { setEditingEvent(null); setShowEventModal(true); }}
-                      className="flex items-center gap-2 bg-[#4285F4] text-white px-4 py-3 rounded-[12px] font-dm font-semibold text-sm shadow-sm hover:bg-[#3A75E0] transition-colors">
-                      <Plus size={15} /> New Event
-                    </button>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="flex-1 sm:w-[250px] bg-white rounded-[14px] border border-foreground/[0.06] flex items-center gap-2 px-3 py-2 shadow-sm">
+                        <Search size={14} className="text-ink-muted" />
+                        <input placeholder="Search events..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                          className="font-dm text-sm text-ink bg-transparent outline-none flex-1" />
+                      </div>
+                      <button onClick={() => { setEditingEvent(null); setShowEventModal(true); }}
+                        className="flex-shrink-0 flex items-center gap-2 bg-[#0F1115] text-white px-5 py-2.5 rounded-[14px] font-dm font-semibold text-sm shadow-[0_4px_14px_rgba(0,0,0,0.15)] hover:opacity-90 active:scale-[0.98] transition-all">
+                        <Plus size={16} /> New Event
+                      </button>
+                    </div>
                   </div>
-                  <div className="bg-white rounded-[20px] border border-foreground/[0.05] overflow-hidden shadow-sm overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
-                      <thead>
-                        <tr className="bg-foreground/[0.02] border-b border-foreground/[0.05]">
-                          {["Event", "Type", "Date", "Location", "Attendees", "Status", ""].map(h => (
-                            <th key={h} className="text-left px-6 py-4 font-dm font-semibold text-xs text-ink-muted uppercase tracking-widest">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredEvents.map(event => (
-                          <tr key={event.slug} className="border-t border-foreground/[0.04] hover:bg-foreground/[0.01] transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: event.badgeColor }} />
-                                <span className="font-dm font-medium text-ink text-sm">{event.title}</span>
-                                {event.featured && <span className="font-syne font-black text-[#EA4335] text-[10px] bg-[#EA4335]/10 px-2 py-0.5 rounded-full">FLAGSHIP</span>}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="font-caveat font-bold text-sm px-3 py-1 rounded-full" style={{ background: `${event.badgeColor}15`, color: event.badgeColor }}>{event.type}</span>
-                            </td>
-                            <td className="px-6 py-4 font-dm text-sm text-ink-muted">{event.date}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-1.5">
-                                {event.interCollege && <span className="font-dm text-[#4285F4] text-xs bg-[#4285F4]/10 px-2 py-0.5 rounded-full">IC</span>}
-                                <span className="font-dm text-sm text-ink-muted">{event.location}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 font-dm-mono text-sm text-ink">{event.attendance}</td>
-                            <td className="px-6 py-4">
-                              <span className="font-dm text-xs px-2.5 py-1 rounded-full font-medium bg-[#34A853]/[0.15] text-[#34A853]">✓ Concluded</span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => { setEditingEvent(event); setShowEventModal(true); }}
-                                  className="w-8 h-8 rounded-[8px] bg-[#4285F4]/[0.08] text-[#4285F4] flex items-center justify-center hover:bg-[#4285F4]/[0.18] transition-colors">
-                                  <Pencil size={13} />
-                                </button>
-                                <button onClick={() => handleDeleteEvent(event.slug)}
-                                  className="w-8 h-8 rounded-[8px] bg-[#EA4335]/[0.08] text-[#EA4335] flex items-center justify-center hover:bg-[#EA4335]/[0.18] transition-colors">
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                  {/* Grid Layout Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredEvents.map(event => {
+                      const status = getEventStatus(event);
+                      return (
+                        <div key={event.slug} className="bg-white rounded-[24px] border border-foreground/[0.05] overflow-hidden shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300 group flex flex-col">
+
+                          {/* Banner Image or Gradient */}
+                          <div className={cn("h-36 w-full relative flex-shrink-0", !event.image_url && `bg-gradient-to-br ${event.gradient || "from-[#4285F4] to-[#1A73E8]"}`)}
+                            style={event.image_url ? { backgroundImage: `url(${event.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
+                            <div className="absolute top-4 left-4 flex gap-2">
+                              <span className="font-dm font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-[10px] bg-white/95 text-ink shadow-sm backdrop-blur-md">
+                                {event.type}
+                              </span>
+                              {event.is_featured && (
+                                <span className="font-syne font-black text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-[10px] bg-[#EA4335] text-white shadow-sm">
+                                  Flagship
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Hover Overlay Actions */}
+                            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button onClick={() => { setEditingEvent(event); setShowEventModal(true); }} className="w-8 h-8 rounded-[10px] bg-white/95 text-ink flex items-center justify-center hover:bg-white transition-colors shadow-md backdrop-blur-md tooltip-trigger"><Pencil size={14} /></button>
+                              <button onClick={() => handleDeleteEvent(event.slug)} className="w-8 h-8 rounded-[10px] bg-white/95 text-[#EA4335] flex items-center justify-center hover:bg-white transition-colors shadow-md backdrop-blur-md"><Trash2 size={14} /></button>
+                            </div>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="p-5 sm:p-6 flex-1 flex flex-col">
+                            <h3 className="font-syne font-bold text-ink text-xl leading-[1.2] mb-3 line-clamp-2">{event.title}</h3>
+
+                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                              <span className="flex items-center gap-1.5 font-dm font-bold text-[11px] uppercase tracking-wider px-3 py-1 rounded-[10px]" style={{ background: status.bg, color: status.color }}>
+                                {status.icon} {status.label}
+                              </span>
+                              <span className="font-dm font-medium text-xs text-ink-muted flex items-center gap-1.5 px-3 py-1 rounded-[10px] bg-foreground/[0.03]">
+                                <CalendarIcon size={12} /> {event.date_display || event.short_date || "—"}
+                              </span>
+                            </div>
+
+                            <p className="font-dm text-sm text-ink-muted line-clamp-2 mb-5 leading-relaxed">
+                              {event.description || "No description provided."}
+                            </p>
+
+                            <div className="mt-auto flex items-center justify-between border-t border-foreground/[0.05] pt-5">
+                              <span className="font-dm font-medium text-xs text-ink-muted flex items-center gap-1.5 truncate max-w-[60%]"><MapPin size={14} className="flex-shrink-0 text-ink/40" /> <span className="truncate">{event.location}</span></span>
+                              <a href={`/events/${event.slug}`} target="_blank" rel="noopener noreferrer" className="text-ink hover:text-[#4285F4] transition-colors font-dm text-xs font-bold flex items-center gap-1">View Portal <ArrowRight size={14} /></a>
+                            </div>
+                          </div>
+
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -457,8 +503,8 @@ const Admin = () => {
                     <h2 className="font-syne font-bold text-ink text-lg mb-4">Quiz Management</h2>
                     <p className="font-dm text-ink-muted text-sm mb-4">Enable or disable quizzes for each event.</p>
                     <div className="space-y-3">
-                      {ALL_EVENTS_ADMIN.map(event => (
-                        <QuizToggleRow key={event.title} event={event} />
+                      {(eventsData as any[]).map((event: any) => (
+                        <QuizToggleRow key={event.slug ?? event.title} event={event} />
                       ))}
                     </div>
                   </div>
@@ -530,7 +576,7 @@ const Admin = () => {
                 <div>
                   <h1 className="font-syne font-black text-ink text-2xl mb-6">Team Members</h1>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                    {members.map(member => (
+                    {(membersData as any[]).map((member: any) => (
                       <div key={member.id} className="bg-white rounded-[20px] p-5 border border-foreground/[0.05] shadow-sm relative group">
                         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => { setEditingMember(member); setShowMemberModal(true); }}
@@ -543,16 +589,29 @@ const Admin = () => {
                           </button>
                         </div>
                         <div className="relative w-fit">
-                          <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${member.seed}`} className="w-16 h-16 rounded-full bg-white border-[3px]"
-                            style={{ borderColor: member.roleColor }} alt={member.name} />
-                          {member.isLead && <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#FBBC04] rounded-full flex items-center justify-center text-[10px]">⭐</div>}
+                          {member.profile_picture_url ? (
+                            <img src={member.profile_picture_url} className="w-16 h-16 rounded-full bg-white border-[3px] object-cover"
+                              style={{ borderColor: member.role_color ?? '#4285F4' }} alt={member.name} />
+                          ) : (
+                            <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${member.dicebear_seed ?? member.name}`} className="w-16 h-16 rounded-full bg-white border-[3px]"
+                              style={{ borderColor: member.role_color ?? '#4285F4' }} alt={member.name} />
+                          )}
+                          {member.is_lead && <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#FBBC04] rounded-full flex items-center justify-center text-[11px] shadow-sm border-2 border-white">⭐</div>}
                         </div>
                         <div className="font-syne font-bold text-ink text-base mt-3">{member.name}</div>
-                        <div className="font-caveat font-semibold text-sm mt-0.5" style={{ color: member.roleColor }}>{member.role}</div>
+                        <div className="font-caveat font-semibold text-sm mt-0.5" style={{ color: member.role_color ?? '#4285F4' }}>{member.role}</div>
+
+                        {(member.branch || member.year) && (
+                          <div className="flex gap-2 mt-2">
+                            {member.branch && <span className="text-[10px] font-dm-mono font-bold bg-foreground/[0.04] px-2 py-0.5 rounded-md text-ink-muted">{member.branch}</span>}
+                            {member.year && <span className="text-[10px] font-dm-mono font-bold bg-[#4285F4]/10 text-[#4285F4] px-2 py-0.5 rounded-md">{member.year}</span>}
+                          </div>
+                        )}
+
                         <p className="font-dm text-xs text-ink-muted mt-2 line-clamp-2">{member.bio}</p>
                         <div className="flex gap-2 mt-3 pt-3 border-t border-foreground/[0.05]">
-                          {member.linkedin && <a href={member.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-dm text-xs text-[#0A66C2] hover:underline"><Linkedin size={11} /> LinkedIn</a>}
-                          {member.email && <a href={`mailto:${member.email}`} className="flex items-center gap-1 font-dm text-xs text-ink-muted hover:text-ink"><Mail size={11} /> {member.email.split("@")[0]}@...</a>}
+                          {member.linkedin_url && <a href={member.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-dm text-xs text-[#0A66C2] hover:underline"><Linkedin size={11} /> LinkedIn</a>}
+                          {member.email && <a href={`mailto:${member.email}`} className="flex items-center gap-1 font-dm text-xs text-ink-muted hover:text-ink"><Mail size={11} /> Email</a>}
                         </div>
                       </div>
                     ))}
@@ -585,22 +644,28 @@ const Admin = () => {
                 <div>
                   <h1 className="font-syne font-black text-ink text-2xl mb-6">Settings</h1>
                   {[
-                    { title: "Site Information", fields: [
-                      { label: "Club Name", default: "GDG on Campus APSIT" },
-                      { label: "Email Address", default: "gdgoncampus.apsit@gmail.com" },
-                      { label: "College", default: "A.P. Shah Institute of Technology, Thane" },
-                      { label: "Founded Year", default: "2022" },
-                    ]},
-                    { title: "Social Links", fields: [
-                      { label: "GitHub", default: "https://github.com/gdg-apsit" },
-                      { label: "LinkedIn", default: "" },
-                      { label: "Instagram", default: "" },
-                      { label: "GDG Community", default: "https://gdg.community.dev" },
-                    ]},
-                    { title: "Admin Access", fields: [
-                      { label: "Admin Email", default: "admin@gdgapsit.com" },
-                      { label: "Change Password", default: "" },
-                    ]},
+                    {
+                      title: "Site Information", fields: [
+                        { label: "Club Name", default: "GDG on Campus APSIT" },
+                        { label: "Email Address", default: "gdgoncampus.apsit@gmail.com" },
+                        { label: "College", default: "A.P. Shah Institute of Technology, Thane" },
+                        { label: "Founded Year", default: "2022" },
+                      ]
+                    },
+                    {
+                      title: "Social Links", fields: [
+                        { label: "GitHub", default: "https://github.com/gdg-apsit" },
+                        { label: "LinkedIn", default: "" },
+                        { label: "Instagram", default: "" },
+                        { label: "GDG Community", default: "https://gdg.community.dev" },
+                      ]
+                    },
+                    {
+                      title: "Admin Access", fields: [
+                        { label: "Admin Email", default: "admin@gdgapsit.com" },
+                        { label: "Change Password", default: "" },
+                      ]
+                    },
                   ].map(group => (
                     <div key={group.title} className="bg-white rounded-[20px] p-6 border border-foreground/[0.05] mb-4">
                       <h3 className="font-syne font-bold text-ink text-lg mb-4">{group.title}</h3>
@@ -628,7 +693,15 @@ const Admin = () => {
         {showEventModal && (
           <EventModal event={editingEvent}
             onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
-            onSave={(ev) => { if (editingEvent) setEventsData(prev => prev.map(e => e.slug === editingEvent.slug ? { ...e, ...ev } : e)); setShowEventModal(false); setEditingEvent(null); }} />
+            onSave={(ev) => {
+              if (editingEvent) {
+                updateEvent.mutate({ slug: editingEvent.slug, data: ev });
+              } else {
+                createEvent.mutate(ev);
+              }
+              setShowEventModal(false);
+              setEditingEvent(null);
+            }} />
         )}
       </AnimatePresence>
 
@@ -637,7 +710,15 @@ const Admin = () => {
         {showMemberModal && (
           <MemberModal member={editingMember}
             onClose={() => { setShowMemberModal(false); setEditingMember(null); }}
-            onSave={() => { setShowMemberModal(false); setEditingMember(null); }} />
+            onSave={(data) => {
+              if (editingMember) {
+                updateMember.mutate({ id: editingMember.id, data });
+              } else {
+                createMember.mutate(data);
+              }
+              setShowMemberModal(false);
+              setEditingMember(null);
+            }} />
         )}
       </AnimatePresence>
     </div>
@@ -645,14 +726,54 @@ const Admin = () => {
 };
 
 // ========== EVENT MODAL ==========
-const EventModal = ({ event, onClose, onSave }: { event: Event | null; onClose: () => void; onSave: (e: Partial<Event>) => void }) => {
+const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: () => void; onSave: (e: any) => void }) => {
   const [title, setTitle] = useState(event?.title || "");
+  const [slug, setSlug] = useState(event?.slug || "");
   const [type, setType] = useState(event?.type || "Workshop");
-  const [date, setDate] = useState(event?.date || "");
+
+  // Add beautiful date picker states (defaults to today for new events)
+  const defaultDateStart = event?.date_start ? new Date(event.date_start) : new Date();
+  const [dateStart, setDateStart] = useState<Date | undefined>(defaultDateStart);
+  const [dateDisplay, setDateDisplay] = useState(event?.date_display || format(defaultDateStart, "MMM d, yyyy"));
+
   const [location, setLocation] = useState(event?.location || "");
   const [attendance, setAttendance] = useState(event?.attendance || "");
   const [description, setDescription] = useState(event?.description || "");
-  const [topics, setTopics] = useState(event?.topics.join(", ") || "");
+  const [longDescription, setLongDescription] = useState(event?.long_description || "");
+  const [imageUrl, setImageUrl] = useState(event?.image_url || "");
+  const [duration, setDuration] = useState(event?.duration || "");
+  const [formatStr, setFormatStr] = useState(event?.format || "");
+  const [isFeatured, setIsFeatured] = useState(event?.is_featured || false);
+  const [isInterCollege, setIsInterCollege] = useState(event?.is_inter_college || false);
+  const [topics, setTopics] = useState((event?.topics ?? []).join(", "));
+
+  // Safe parse function
+  const safeParse = (val: any) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    try { return JSON.parse(val); } catch { return []; }
+  };
+
+  // New JSONB Array Builder States
+  const [speakers, setSpeakers] = useState<any[]>(safeParse(event?.speakers));
+  const [agenda, setAgenda] = useState<any[]>(safeParse(event?.agenda));
+  const [faqs, setFaqs] = useState<any[]>(safeParse(event?.faqs));
+  const [sponsors, setSponsors] = useState<any[]>(safeParse(event?.sponsors));
+
+  // Quiz Engine States
+  const [quizEnabled, setQuizEnabled] = useState(event?.quiz_enabled || false);
+  const [quizData, setQuizData] = useState<any[]>(safeParse(event?.quiz_data));
+
+  // Auto-generate slug from title
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    if (!event) setSlug(val.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+  };
+
+  const handleDateSelect = (d: Date | undefined) => {
+    setDateStart(d);
+    if (d) setDateDisplay(format(d, "MMM d, yyyy")); // Auto-fill the display text on selection
+  };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -667,8 +788,14 @@ const EventModal = ({ event, onClose, onSave }: { event: Event | null; onClose: 
         <div className="px-5 sm:px-8 py-6 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           <div className="col-span-2 flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Event Title</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
+            <input value={title} onChange={e => handleTitleChange(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
           </div>
+          {!event && (
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <label className="font-caveat text-ink-muted text-base">Slug (URL-friendly ID)</label>
+              <input value={slug} onChange={e => setSlug(e.target.value)} placeholder="e.g. flutter-forward-2025" className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm-mono text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Event Type</label>
             <select value={type} onChange={e => setType(e.target.value as any)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] bg-white">
@@ -677,7 +804,29 @@ const EventModal = ({ event, onClose, onSave }: { event: Event | null; onClose: 
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Date</label>
-            <input value={date} onChange={e => setDate(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className={cn(
+                  "border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none transition-all flex items-center justify-between text-left hover:bg-foreground/[0.02] bg-white w-full",
+                  !dateStart && "text-ink-muted"
+                )}>
+                  {dateStart ? format(dateStart, "PPP") : <span>Pick a date</span>}
+                  <CalendarDays size={16} className="text-[#4285F4] opacity-50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 z-[60] bg-white border border-foreground/[0.08]" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateStart}
+                  onSelect={handleDateSelect}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Date Display (Editable Text)</label>
+            <input value={dateDisplay} onChange={e => setDateDisplay(e.target.value)} placeholder="e.g. Feb 21 - Feb 23, 2026" className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Location</label>
@@ -687,19 +836,297 @@ const EventModal = ({ event, onClose, onSave }: { event: Event | null; onClose: 
             <label className="font-caveat text-ink-muted text-base">Attendance</label>
             <input value={attendance} onChange={e => setAttendance(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
           </div>
-          <div className="col-span-2 flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] resize-none" />
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Duration</label>
+            <input value={duration} onChange={e => setDuration(e.target.value)} placeholder="e.g. 2 Days, 4 Hours" className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Format</label>
+            <input value={formatStr} onChange={e => setFormatStr(e.target.value)} placeholder="e.g. In-Person, Online" className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
           </div>
           <div className="col-span-2 flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Image URL</label>
+            <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="e.g. https://imgur.com/... or Google Drive link" className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
+          </div>
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Short Description</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] resize-none" />
+          </div>
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Long Details (Markdown allowed later)</label>
+            <textarea value={longDescription} onChange={e => setLongDescription(e.target.value)} rows={4} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] resize-vertical" />
+          </div>
+          <div className="col-span-2 flex items-center gap-6 mt-2 mb-2">
+            <label className="flex items-center gap-2 font-dm text-sm text-ink cursor-pointer">
+              <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} className="w-4 h-4 accent-[#4285F4]" />
+              Flagship / Featured (Bigger Card)
+            </label>
+            <label className="flex items-center gap-2 font-dm text-sm text-ink cursor-pointer">
+              <input type="checkbox" checked={isInterCollege} onChange={e => setIsInterCollege(e.target.checked)} className="w-4 h-4 accent-[#4285F4]" />
+              Inter-College Event
+            </label>
+          </div>
+          <div className="col-span-2 flex flex-col gap-1.5 mb-2">
             <label className="font-caveat text-ink-muted text-base">Topics (comma-separated)</label>
             <input value={topics} onChange={e => setTopics(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
             <div className="flex flex-wrap gap-1.5 mt-1">
               {topics.split(",").filter(Boolean).map(t => <span key={t} className="font-dm text-xs px-2.5 py-1 rounded-full bg-[#4285F4]/10 text-[#4285F4]">{t.trim()}</span>)}
             </div>
           </div>
+
+          {/* ════ EVENT ENRICHMENT: ARRAY BUILDERS ════ */}
+          <div className="col-span-2 border-t border-foreground/[0.06] pt-5 mt-2">
+            <h3 className="font-syne font-bold text-ink text-xl">Event Enrichment</h3>
+            <p className="font-dm text-ink-muted text-xs mt-1">Populate these arrays to automatically generate beautiful UI sections on the public Event Details page.</p>
+          </div>
+
+          {/* SPEAKERS BUILDER */}
+          <div className="col-span-2 flex flex-col gap-3 p-5 bg-foreground/[0.015] rounded-[20px] border border-foreground/[0.05]">
+            <div className="flex items-center justify-between">
+              <label className="font-caveat text-ink text-xl font-bold">Speakers</label>
+              <button onClick={() => setSpeakers([...speakers, { name: "", role: "", company: "", avatar: "", linkedinUrl: "" }])}
+                className="text-xs bg-white border border-foreground/[0.08] px-3.5 py-2 rounded-full font-dm font-semibold text-ink shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-foreground/[0.02] transition-colors flex items-center gap-1.5">
+                <Plus size={12} /> Add Speaker
+              </button>
+            </div>
+            {speakers.length === 0 && <p className="text-xs text-ink-muted font-dm italic">No speakers added yet.</p>}
+            {speakers.map((sp, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-2 bg-white p-2 rounded-[12px] border border-foreground/[0.05] shadow-sm">
+                <input value={sp.name} placeholder="Name" onChange={e => { const s = [...speakers]; s[i].name = e.target.value; setSpeakers(s); }} className="w-full sm:w-[25%] border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none focus:border-[#4285F4]" />
+                <input value={sp.role} placeholder="Role / Title" onChange={e => { const s = [...speakers]; s[i].role = e.target.value; setSpeakers(s); }} className="w-full sm:w-[35%] border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none focus:border-[#4285F4]" />
+                <input value={sp.linkedinUrl} placeholder="LinkedIn URL" onChange={e => { const s = [...speakers]; s[i].linkedinUrl = e.target.value; setSpeakers(s); }} className="flex-1 border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none focus:border-[#4285F4]" />
+                <button onClick={() => setSpeakers(speakers.filter((_, idx) => idx !== i))} className="w-full sm:w-9 h-9 flex items-center justify-center text-[#EA4335] bg-red-50 rounded-[8px] border border-red-100 hover:bg-red-100 transition-colors"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* AGENDA BUILDER */}
+          <div className="col-span-2 flex flex-col gap-3 p-5 bg-foreground/[0.015] rounded-[20px] border border-foreground/[0.05] mt-2">
+            <div className="flex items-center justify-between">
+              <label className="font-caveat text-ink text-xl font-bold">Agenda Timeline</label>
+              <button onClick={() => setAgenda([...agenda, { time: "10:00 AM", title: "", description: "" }])}
+                className="text-xs bg-white border border-foreground/[0.08] px-3.5 py-2 rounded-full font-dm font-semibold text-ink shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-foreground/[0.02] transition-colors flex items-center gap-1.5">
+                <Plus size={12} /> Add Time Block
+              </button>
+            </div>
+            {agenda.length === 0 && <p className="text-xs text-ink-muted font-dm italic">No agenda blocks added yet.</p>}
+            {agenda.map((ag, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-2 bg-white p-2 rounded-[12px] border border-foreground/[0.05] shadow-sm items-start sm:items-center">
+                <input value={ag.time} placeholder="e.g. 10:30 AM" onChange={e => { const s = [...agenda]; s[i].time = e.target.value; setAgenda(s); }} className="w-full sm:w-[100px] border border-foreground/10 rounded-[8px] px-3 py-2 font-dm font-bold text-xs outline-none text-center focus:border-[#4285F4]" />
+                <div className="flex-1 w-full flex flex-col gap-2">
+                  <input value={ag.title} placeholder="Session Title" onChange={e => { const s = [...agenda]; s[i].title = e.target.value; setAgenda(s); }} className="w-full border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none font-semibold focus:border-[#4285F4]" />
+                  <input value={ag.description} placeholder="Short Description / Subtitle" onChange={e => { const s = [...agenda]; s[i].description = e.target.value; setAgenda(s); }} className="w-full border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none text-ink-muted focus:border-[#4285F4]" />
+                </div>
+                <button onClick={() => setAgenda(agenda.filter((_, idx) => idx !== i))} className="w-full sm:w-9 h-full min-h-[9px] sm:min-h-[70px] flex items-center justify-center text-[#EA4335] bg-red-50 rounded-[8px] border border-red-100 hover:bg-red-100 transition-colors"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* FAQS BUILDER */}
+          <div className="col-span-2 flex flex-col gap-3 p-5 bg-foreground/[0.015] rounded-[20px] border border-foreground/[0.05] mt-2">
+            <div className="flex items-center justify-between">
+              <label className="font-caveat text-ink text-xl font-bold">FAQs</label>
+              <button onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}
+                className="text-xs bg-white border border-foreground/[0.08] px-3.5 py-2 rounded-full font-dm font-semibold text-ink shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-foreground/[0.02] transition-colors flex items-center gap-1.5">
+                <Plus size={12} /> Add Question
+              </button>
+            </div>
+            {faqs.length === 0 && <p className="text-xs text-ink-muted font-dm italic">No questions added yet.</p>}
+            {faqs.map((faq, i) => (
+              <div key={i} className="flex gap-2 bg-white p-2 rounded-[12px] border border-foreground/[0.05] shadow-sm items-start">
+                <div className="flex-1 w-full flex flex-col gap-2">
+                  <input value={faq.question} placeholder="Question" onChange={e => { const s = [...faqs]; s[i].question = e.target.value; setFaqs(s); }} className="w-full border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs font-bold outline-none focus:border-[#4285F4]" />
+                  <textarea value={faq.answer} placeholder="Answer" rows={2} onChange={e => { const s = [...faqs]; s[i].answer = e.target.value; setFaqs(s); }} className="w-full border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none text-ink-muted resize-none focus:border-[#4285F4]" />
+                </div>
+                <button onClick={() => setFaqs(faqs.filter((_, idx) => idx !== i))} className="w-9 sm:w-9 h-[70px] flex flex-shrink-0 items-center justify-center text-[#EA4335] bg-red-50 rounded-[8px] border border-red-100 hover:bg-red-100 transition-colors"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* SPONSORS BUILDER */}
+          <div className="col-span-2 flex flex-col gap-3 p-5 bg-foreground/[0.015] rounded-[20px] border border-foreground/[0.05] mt-2 mb-4">
+            <div className="flex items-center justify-between">
+              <label className="font-caveat text-ink text-xl font-bold">Sponsors / Powered By</label>
+              <button onClick={() => setSponsors([...sponsors, { name: "", logo: "" }])}
+                className="text-xs bg-white border border-foreground/[0.08] px-3.5 py-2 rounded-full font-dm font-semibold text-ink shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-foreground/[0.02] transition-colors flex items-center gap-1.5">
+                <Plus size={12} /> Add Sponsor
+              </button>
+            </div>
+            {sponsors.length === 0 && <p className="text-xs text-ink-muted font-dm italic">No sponsors added yet.</p>}
+            {sponsors.map((sponsor, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-2 bg-white p-2 rounded-[12px] border border-foreground/[0.05] shadow-sm">
+                <input value={sponsor.name} placeholder="Sponsor Name" onChange={e => { const s = [...sponsors]; s[i].name = e.target.value; setSponsors(s); }} className="w-full sm:w-[35%] border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none focus:border-[#4285F4]" />
+                <input value={sponsor.logo} placeholder="Logo Image URL (SVG/PNG)" onChange={e => { const s = [...sponsors]; s[i].logo = e.target.value; setSponsors(s); }} className="flex-1 border border-foreground/10 rounded-[8px] px-3 py-2 font-dm text-xs outline-none focus:border-[#4285F4]" />
+                <button onClick={() => setSponsors(sponsors.filter((_, idx) => idx !== i))} className="w-full sm:w-9 h-9 flex items-center justify-center text-[#EA4335] bg-red-50 rounded-[8px] border border-red-100 hover:bg-red-100 transition-colors"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+          {/* QUIZ ENGINE BUILDER - REDESIGNED */}
+          <div className="col-span-2 flex flex-col p-6 sm:p-8 bg-[#0F1115] rounded-[32px] border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.15)] mt-4 mb-6 relative overflow-hidden group">
+            {/* Dark Mode Background Effects */}
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-bl from-[#4285F4]/20 to-transparent blur-[80px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gradient-to-tr from-[#EA4335]/20 to-transparent blur-[80px] rounded-full pointer-events-none" />
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 z-10 border-b border-white/10 pb-6 mb-6">
+              <div>
+                 <h3 className="font-syne font-black text-white text-2xl sm:text-3xl flex items-center gap-3">
+                   Gamified Quiz Engine 
+                   <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>🎯</motion.span>
+                 </h3>
+                 <p className="font-dm text-sm text-white/50 mt-2 leading-relaxed max-w-md">Design interactive challenges. Configure multiple-choice or short-answer questions, assign points, and watch attendees battle on the live leaderboard.</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                 <input type="checkbox" className="sr-only peer" checked={quizEnabled} onChange={(e) => setQuizEnabled(e.target.checked)} />
+                 <div className="w-14 h-8 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[#34A853] after:content-[''] after:absolute after:top-[8px] after:left-[8px] after:bg-white after:border-gray-500 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-[#34A853]/20 border border-white/10 shadow-inner"></div>
+                 <span className="ml-3 font-dm font-bold text-sm text-white pr-2">{quizEnabled ? 'Quiz On' : 'Quiz Off'}</span>
+              </label>
+              {quizEnabled && (
+                <button className="bg-[#4285F4] text-white px-5 py-2 rounded-full font-dm font-bold text-xs hover:scale-105 transition-all flex items-center gap-2 shadow-[0_4px_15px_rgba(66,133,244,0.3)]">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                  </span>
+                  Host Live Session
+                </button>
+              )}
+            </div>
+            
+            {quizEnabled && (
+               <div className="flex flex-col gap-8 z-10 transition-all">
+                  
+                  {quizData.length === 0 && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 border-dashed rounded-[24px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                      <div className="w-20 h-20 bg-gradient-to-br from-[#4285F4] to-[#1A73E8] rounded-full shadow-[0_0_30px_rgba(66,133,244,0.3)] flex items-center justify-center text-white mb-6 text-3xl">✨</div>
+                      <h4 className="font-syne font-bold text-white text-xl">No Challenges Constructed</h4>
+                      <p className="font-dm text-white/40 text-sm mt-2 mb-8 max-w-sm">Craft the perfect quiz to challenge your attendees. They will earn points based on accuracy and speed.</p>
+                      <button onClick={() => setQuizData([{ question: "", type: "mcq", options: ["", "", "", ""], correctIndex: 0, points: 100, explanation: "", correct_keywords: [] }])}
+                        className="bg-white text-black px-8 py-3.5 rounded-full font-syne font-bold text-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.2)]">
+                        <Plus size={16} /> Ignite First Question
+                      </button>
+                    </motion.div>
+                  )}
+                  
+                  {quizData.length > 0 && quizData.map((q, qIndex) => (
+                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: qIndex * 0.05 }} key={qIndex} 
+                      className="bg-white/5 p-6 sm:p-8 rounded-[24px] border border-white/10 shadow-xl flex flex-col gap-6 relative group/card hover:border-white/20 transition-colors">
+                       
+                       <div className="absolute top-0 right-0 p-4 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-2">
+                         <button onClick={() => setQuizData(quizData.filter((_, idx) => idx !== qIndex))} className="text-[#EA4335] bg-[#EA4335]/10 p-2.5 rounded-xl hover:bg-[#EA4335] hover:text-white transition-all shadow-sm"><Trash2 size={16} /></button>
+                       </div>
+                       
+                       <div className="flex flex-col sm:flex-row gap-4 w-full relative">
+                         <div className="flex-1 relative mt-2 sm:mt-0">
+                           <span className="absolute -top-3 left-4 bg-[#4285F4] text-white font-dm-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-[0_0_10px_rgba(66,133,244,0.5)]">QUESTION {qIndex + 1}</span>
+                           <input value={q.question} placeholder="What will happen when you compile..." 
+                             onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], question: e.target.value }; setQuizData(s); }} 
+                             className="w-full bg-black/40 border border-white/10 rounded-[16px] px-5 py-4 pt-5 font-dm text-base sm:text-lg font-bold text-white outline-none focus:border-[#4285F4] focus:bg-black/60 transition-all shadow-inner placeholder-white/20" />
+                         </div>
+                         <div className="flex gap-3 mt-4 sm:mt-0 pt-2 sm:pt-0">
+                           <div className="flex flex-col gap-1 w-[110px]">
+                             <label className="text-[10px] uppercase font-dm font-bold text-white/40 ml-1">Type</label>
+                             <select value={q.type || "mcq"} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], type: e.target.value as "mcq"|"short" }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-sm rounded-[10px] px-3 py-3 outline-none focus:border-[#4285F4] appearance-none">
+                               <option value="mcq" className="bg-[#161616]">MCQ</option>
+                               <option value="short" className="bg-[#161616]">Short Ans</option>
+                             </select>
+                           </div>
+                           <div className="flex flex-col gap-1 w-[80px]">
+                             <label className="text-[10px] uppercase font-dm font-bold text-white/40 ml-1">Points</label>
+                             <input type="number" value={q.points ?? 100} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], points: parseInt(e.target.value)||0 }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-sm rounded-[10px] px-3 py-3 outline-none focus:border-[#4285F4] text-center" />
+                           </div>
+                         </div>
+                       </div>
+                       
+                       {(q.type === "mcq" || !q.type) && (
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                            {(q.options || []).map((opt: string, oIndex: number) => {
+                               const isCorrect = q.correctIndex === oIndex;
+                               return (
+                                 <div key={oIndex} className={cn("flex flex-col gap-3 rounded-[16px] px-5 py-4 transition-all relative overflow-hidden group/opt", 
+                                     isCorrect ? 'bg-[#34A853]/10 border sm:border-2 border-[#34A853] shadow-[0_0_20px_rgba(52,168,83,0.15)]' : 'bg-white/5 border border-white/5 hover:border-white/20')}>
+                                    
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className={cn("font-syne font-black text-sm px-2.5 py-0.5 rounded-md", isCorrect ? "bg-[#34A853] text-white" : "bg-white/10 text-white/40")}>
+                                        {["A", "B", "C", "D"][oIndex]}
+                                      </span>
+                                      
+                                      <label className="flex items-center gap-2 cursor-pointer select-none group/radio">
+                                        <input type="radio" name={`correct-${qIndex}`} checked={isCorrect} 
+                                          onChange={() => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], correctIndex: oIndex }; setQuizData(s); }} 
+                                          className="hidden" />
+                                        <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", isCorrect ? "border-[#34A853] bg-[#34A853] scale-110" : "border-white/20 group-hover/radio:border-white/50")}>
+                                          {isCorrect && <Check size={12} strokeWidth={4} className="text-white" />}
+                                        </div>
+                                        <span className={cn("font-dm font-bold text-xs transition-colors", isCorrect ? "text-[#34A853]" : "text-white/40 group-hover/radio:text-white/70")}>
+                                          {isCorrect ? "Correct Answer" : "Mark Correct"}
+                                        </span>
+                                      </label>
+                                    </div>
+
+                                    <input value={opt} placeholder={`Type option ${["A","B","C","D"][oIndex]} here...`} 
+                                      onChange={e => { const s = [...quizData]; const newOpt = [...s[qIndex].options]; newOpt[oIndex] = e.target.value; s[qIndex] = { ...s[qIndex], options: newOpt }; setQuizData(s); }} 
+                                      className={cn("w-full bg-transparent font-dm text-sm sm:text-base outline-none z-10 font-medium", isCorrect ? "text-[#34A853] placeholder-[#34A853]/40" : "text-white placeholder-white/20")} />
+                                 </div>
+                               );
+                            })}
+                         </div>
+                       )}
+
+                       {q.type === "short" && (
+                         <div className="bg-white/5 border border-white/10 rounded-[16px] px-5 py-4">
+                           <label className="text-[10px] uppercase font-dm font-bold text-[#FBBC04] tracking-widest block mb-2">Accepted Keywords (Comma Separated)</label>
+                           <input value={(q.correct_keywords||[]).join(", ")} placeholder="e.g. react, hooks, functional" 
+                              onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], correct_keywords: e.target.value.split(",").map((k: string) => k.trim()).filter(Boolean) }; setQuizData(s); }}
+                              className="w-full bg-transparent font-dm text-base sm:text-lg outline-none text-white placeholder-white/20" />
+                         </div>
+                       )}
+
+                       <div className="mt-2 border-t border-white/10 pt-4 flex flex-col gap-2">
+                         <label className="text-[10px] uppercase font-dm font-bold text-white/40">Explanation (Shown after answering)</label>
+                         <textarea value={q.explanation || ""} placeholder="Explain why this is correct..." 
+                           onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], explanation: e.target.value }; setQuizData(s); }}
+                           rows={1} className="w-full bg-white/5 border border-white/10 rounded-[12px] px-4 py-2 font-dm text-sm text-white outline-none focus:border-white/30 resize-y placeholder-white/20" />
+                       </div>
+                    </motion.div>
+                  ))}
+
+                  {quizData.length > 0 && (
+                    <button onClick={() => setQuizData([...quizData, { question: "", type: "mcq", options: ["", "", "", ""], correctIndex: 0, points: 100, explanation: "", correct_keywords: [] }])}
+                      className="self-center mt-4 bg-white/5 border border-white/10 text-white px-8 py-4 rounded-full font-syne font-bold text-sm hover:bg-white/10 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 shadow-sm backdrop-blur-sm">
+                      <Plus size={18} /> Spawn Another Challenge
+                    </button>
+                  )}
+               </div>
+            )}
+          </div>
+
           <div className="col-span-2">
-            <button onClick={() => onSave({ title, type, date, location, attendance, description, topics: topics.split(",").map(t => t.trim()).filter(Boolean) })}
+            <button onClick={() => {
+              const shortDate = dateStart ? format(dateStart, "MMM d") : undefined;
+              const monthStr = dateStart ? format(dateStart, "MMMM") : undefined; // MMMM = 'February', for compatibility if month pill depends on it (Calendar logic handled internally but it's good form)
+
+              // Handle local date timezone shift by manually pulling components
+              const dateStartIso = dateStart
+                ? `${dateStart.getFullYear()}-${String(dateStart.getMonth() + 1).padStart(2, '0')}-${String(dateStart.getDate()).padStart(2, '0')}`
+                : undefined;
+
+              onSave({
+                slug, title, type,
+                date_start: dateStartIso,
+                date_display: dateDisplay,
+                short_date: shortDate,
+                month: monthStr,
+                location, attendance, description,
+                long_description: longDescription, image_url: imageUrl,
+                duration, format: formatStr, is_featured: isFeatured, is_inter_college: isInterCollege,
+                topics: topics.split(",").map(t => t.trim()).filter(Boolean),
+                speakers: JSON.stringify(speakers),
+                agenda: JSON.stringify(agenda),
+                faqs: JSON.stringify(faqs),
+                sponsors: JSON.stringify(sponsors),
+                quiz_enabled: quizEnabled,   // Persisting quiz engine
+                quiz_data: JSON.stringify(quizData)
+              });
+            }}
               className="w-full py-4 rounded-[16px] bg-[#4285F4] text-white font-syne font-bold text-base hover:bg-[#3A75E0] transition-all shadow-[0_4px_16px_rgba(66,133,244,0.3)]">
               {event ? "Update Event" : "Publish Event"} →
             </button>
@@ -711,60 +1138,206 @@ const EventModal = ({ event, onClose, onSave }: { event: Event | null; onClose: 
 };
 
 // ========== MEMBER MODAL ==========
-const MemberModal = ({ member, onClose, onSave }: { member: typeof teamMembers[0] | null; onClose: () => void; onSave: () => void }) => {
+const MemberModal = ({ member, onClose, onSave }: { member: any | null; onClose: () => void; onSave: (data: object) => void }) => {
   const [name, setName] = useState(member?.name || "");
   const [role, setRole] = useState(member?.role || "Core Member");
-  const [seed, setSeed] = useState(member?.seed || "preview");
-  const [roleColor, setRoleColor] = useState(member?.roleColor || "#4285F4");
+  const [seed, setSeed] = useState(member?.dicebear_seed || member?.seed || "preview");
+  const [roleColor, setRoleColor] = useState(member?.role_color || member?.roleColor || "#4285F4");
   const [bio, setBio] = useState(member?.bio || "");
+  const [teamType, setTeamType] = useState(member?.team_type || "core");
+  const [isLead, setIsLead] = useState(member?.is_lead || false);
+  const [linkedinUrl, setLinkedinUrl] = useState(member?.linkedin_url || "");
+  const [email, setEmail] = useState(member?.email || "");
+  const [displayOrder, setDisplayOrder] = useState(member?.display_order || 0);
+  const [isVisible, setIsVisible] = useState(member?.is_visible !== undefined ? member.is_visible : true);
+
+  // NEW COLUMNS
+  const [profilePictureUrl, setProfilePictureUrl] = useState(member?.profile_picture_url || "");
+  const [branch, setBranch] = useState(member?.branch || "CS");
+  const [year, setYear] = useState(member?.year || "TE");
+
+  // Determines which avatar to render for the preview
+  const activeAvatar = profilePictureUrl.trim() !== "" ? profilePictureUrl : `https://api.dicebear.com/9.x/micah/svg?seed=${seed || "preview"}`;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
-        className="bg-white rounded-t-[28px] sm:rounded-[28px] w-full sm:max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="sticky top-0 bg-white border-b border-foreground/[0.06] px-6 sm:px-8 py-4 sm:py-5 flex items-center justify-between rounded-t-[28px]">
-          <h2 className="font-syne font-bold text-ink text-lg sm:text-xl">{member ? "Edit Member" : "Add Member"}</h2>
+        className="bg-white rounded-t-[28px] sm:rounded-[28px] w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+
+        {/* MODAL HEADER */}
+        <div className="sticky top-0 bg-white border-b border-foreground/[0.06] px-6 sm:px-8 py-4 sm:py-5 flex items-center justify-between rounded-t-[28px] z-10" style={{ position: "sticky", zIndex: "100000" }}>
+          <h2 className="font-syne font-bold text-ink text-lg sm:text-xl flex items-center gap-2">{member ? "Edit Team Member" : "Onboard New Member"} {isLead && <span className="text-xl">👑</span>}</h2>
           <button onClick={onClose} className="w-9 h-9 rounded-full bg-foreground/[0.05] flex items-center justify-center hover:bg-foreground/10"><X size={16} /></button>
         </div>
-        <div className="px-8 py-6 space-y-5">
-          <div className="flex justify-center p-6 bg-foreground/[0.02] rounded-[16px]">
-            <div className="relative">
-              <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${seed || "preview"}`} className="w-24 h-24 rounded-full border-4 bg-white transition-all" style={{ borderColor: roleColor }} alt="Preview" />
-              <div className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[10px] font-caveat font-bold text-white" style={{ background: roleColor }}>{role || "Role"}</div>
+
+        <div className="px-5 sm:px-8 py-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6">
+
+          {/* LIVE PREVIEW HERO */}
+          <div className="col-span-1 sm:col-span-2 flex flex-col items-center justify-center bg-gradient-to-br from-foreground/[0.01] to-foreground/[0.03] p-6 rounded-[24px] border border-foreground/[0.04] relative overflow-hidden">
+
+            {/* Background blur ring */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full blur-[60px] opacity-20" style={{ background: roleColor }} />
+
+            {/* Avatar */}
+            <div className="relative z-10 mb-3 group">
+              <img src={activeAvatar} onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/9.x/micah/svg?seed=fallback`; }}
+                className="w-28 h-28 object-cover rounded-full border-4 shadow-xl transition-all duration-300 group-hover:scale-105"
+                style={{ borderColor: roleColor, backgroundColor: profilePictureUrl ? 'transparent' : 'white' }} alt="Avatar Preview" />
+              <div className="absolute -bottom-2 right-0 px-3 py-1 rounded-full text-xs font-syne font-bold text-white shadow-md transform rotate-[-5deg]" style={{ background: roleColor }}>
+                {role || "Role"}
+              </div>
             </div>
+
+            <h3 className="font-syne font-black text-2xl text-ink tracking-tight z-10 mt-2">{name || "Name Surname"}</h3>
+            <p className="font-dm text-sm text-ink-muted flex items-center gap-1.5 z-10">
+              {branch} • {year}
+            </p>
           </div>
+
+          <div className="col-span-1 sm:col-span-2 border-t border-foreground/[0.06] pt-4 mt-2">
+            <h3 className="font-syne font-bold text-ink text-lg">Identity & Appearance</h3>
+          </div>
+
+          {/* BASIC INFO */}
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Full Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="E.g. Sundar Pichai" className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] bg-white">
-              {["GDG Lead", "Tech Head", "Literature Head", "Cinematographer", "Operations Head", "Creatives Head", "Core Member"].map(r => <option key={r}>{r}</option>)}
-            </select>
+            <label className="font-caveat text-ink-muted text-base">Profile Image URL (Overrides Dicebear)</label>
+            <input value={profilePictureUrl} onChange={e => setProfilePictureUrl(e.target.value)} className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" placeholder="https://..." />
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">DiceBear Seed</label>
-            <input value={seed} onChange={e => setSeed(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" placeholder="e.g. Emery" />
+            <div className="flex items-center justify-between">
+              <label className="font-caveat text-ink-muted text-base">DiceBear Seed (Fallback)</label>
+              <button onClick={() => setSeed(Math.random().toString(36).substring(7))} className="text-[10px] bg-foreground/[0.05] px-2 py-0.5 rounded-full font-dm font-semibold text-ink-muted hover:text-ink">Randomize</button>
+            </div>
+            <input value={seed} onChange={e => setSeed(e.target.value)} className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all bg-foreground/[0.01]" placeholder="e.g. Emery" disabled={!!profilePictureUrl.trim()} title={profilePictureUrl ? "Clear Custom Image URL to use Dicebear" : ""} />
           </div>
+
+          <div className="col-span-1 sm:col-span-2 border-t border-foreground/[0.06] pt-4 mt-2">
+            <h3 className="font-syne font-bold text-ink text-lg">GDG Designation</h3>
+          </div>
+
           <div className="flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">Role Color</label>
-            <div className="flex gap-2">
-              {["#4285F4", "#EA4335", "#FBBC04", "#34A853", "#7C3AED"].map(c => (
-                <button key={c} onClick={() => setRoleColor(c)} className="w-8 h-8 rounded-full border-2 transition-all"
-                  style={{ background: c, borderColor: roleColor === c ? "#111" : "transparent", transform: roleColor === c ? "scale(1.2)" : "scale(1)" }} />
+            <label className="font-caveat text-ink-muted text-base">Role Title</label>
+            <input value={role} onChange={e => setRole(e.target.value)} className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" list="role-suggestions" />
+            <datalist id="role-suggestions">
+              <option value="Lead" />
+              <option value="Tech Head" />
+              <option value="Operations Head" />
+              <option value="Creatives Head" />
+              <option value="Core Member" />
+              <option value="Volunteer" />
+            </datalist>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Team Placement</label>
+            <div className="grid grid-cols-2 gap-2 h-[46px]">
+              {([['core', 'Core Team'], ['extended', 'Full Crew']] as const).map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setTeamType(val)}
+                  className={`rounded-[12px] font-dm text-sm font-semibold border-2 transition-all flex items-center justify-center ${teamType === val ? 'border-[#4285F4] bg-[#4285F4]/[0.08] text-[#4285F4]' : 'border-foreground/10 text-ink-muted hover:bg-foreground/[0.02]'
+                    }`}>
+                  {label}
+                </button>
               ))}
             </div>
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">Bio</label>
-            <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4] resize-none" />
+            <label className="font-caveat text-ink-muted text-base">Role Theme Color</label>
+            <div className="flex gap-3 items-center h-[46px]">
+              {["#4285F4", "#EA4335", "#FBBC04", "#34A853", "#7C3AED", "#111111"].map(c => (
+                <button key={c} onClick={() => setRoleColor(c)} className="w-[34px] h-[34px] rounded-full border-[3px] transition-all shadow-sm flex items-center justify-center"
+                  style={{ background: c, borderColor: roleColor === c ? "#111" : "transparent" }}>
+                  {roleColor === c && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                </button>
+              ))}
+              <input type="color" value={roleColor} onChange={e => setRoleColor(e.target.value)} className="w-9 h-9 p-0 border-0 rounded-full cursor-pointer overflow-hidden opacity-50 hover:opacity-100 transition-opacity" title="Custom Hex" />
+            </div>
           </div>
-          <button onClick={onSave} className="w-full py-4 rounded-[16px] bg-[#4285F4] text-white font-syne font-bold text-base hover:bg-[#3A75E0] transition-all">
-            {member ? "Update Member" : "Add Member"} →
-          </button>
+
+          <div className="col-span-1 sm:col-span-2 border-t border-foreground/[0.06] pt-4 mt-2">
+            <h3 className="font-syne font-bold text-ink text-lg flex items-center gap-2">Academic Background 🎒</h3>
+          </div>
+
+          <div className="flex flex-col gap-2 col-span-1 sm:col-span-2">
+            <label className="font-caveat text-ink-muted text-base">Engineering Branch</label>
+            <div className="flex flex-wrap gap-2">
+              {["Computer", "IT", "Data Science", "AIML", "Civil", "Mechanical", "ECS", "AIMAC"].map(b => (
+                <button key={b} onClick={() => setBranch(b)} className={`px-4 py-2 text-sm font-dm font-semibold rounded-[10px] transition-all border ${branch === b ? 'bg-ink text-white border-ink shadow-md' : 'bg-white border-foreground/10 text-ink-muted hover:border-foreground/20'}`}>
+                  {b}
+                </button>
+              ))}
+              <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="Other..." className="w-[100px] border-b-2 border-foreground/10 px-2 py-1 font-dm text-sm outline-none focus:border-[#4285F4]" />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 col-span-1 sm:col-span-2">
+            <label className="font-caveat text-ink-muted text-base">Current Year</label>
+            <div className="flex flex-wrap gap-2">
+              {["FE", "SE", "TE", "BE", "Alumni"].map(y => (
+                <button key={y} onClick={() => setYear(y)} className={`px-5 py-2 text-sm font-dm font-semibold rounded-[10px] transition-all border ${year === y ? 'bg-[#34A853] text-white border-[#34A853] shadow-md' : 'bg-white border-foreground/10 text-ink-muted hover:border-foreground/20'}`}>
+                  {y}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="col-span-1 sm:col-span-2 border-t border-foreground/[0.06] pt-4 mt-2">
+            <h3 className="font-syne font-bold text-ink text-lg">Social & Biometrics</h3>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">LinkedIn URL</label>
+            <input value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/username" className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Email Contact</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@gdgapsit.com" type="email" className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" />
+          </div>
+
+          <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Member Bio (Short hook)</label>
+            <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="A short bio about their passion..." className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] resize-none transition-all" />
+          </div>
+
+          <div className="col-span-1 sm:col-span-2 bg-foreground/[0.02] p-4 rounded-[16px] border border-foreground/[0.05] grid grid-cols-2 gap-4">
+            <label className="flex items-center gap-3 font-dm text-sm text-ink font-semibold cursor-pointer">
+              <input type="checkbox" checked={isLead} onChange={e => setIsLead(e.target.checked)} className="w-5 h-5 accent-[#EA4335]" />
+              Assign "Lead" Flag 👑
+            </label>
+            <label className="flex items-center gap-3 font-dm text-sm text-ink font-semibold cursor-pointer">
+              <input type="checkbox" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} className="w-5 h-5 accent-[#4285F4]" />
+              Visible on Live Site
+            </label>
+            <div className="col-span-2 flex items-center gap-3 mt-2">
+              <label className="flex items-center gap-2 font-dm text-sm text-ink font-semibold whitespace-nowrap">Display Order (Z-A):</label>
+              <input type="number" value={displayOrder} onChange={e => setDisplayOrder(parseInt(e.target.value) || 0)} className="w-20 border border-foreground/10 rounded-[8px] px-3 py-1.5 font-dm text-sm outline-none font-semibold text-center bg-white focus:border-[#4285F4]" />
+              <span className="font-dm text-xs text-ink-muted ml-2">Higher numbers display first.</span>
+            </div>
+          </div>
+
+          {/* SUBMIT */}
+          <div className="col-span-1 sm:col-span-2 pt-2">
+            <button onClick={() => onSave({
+              name, role, role_color: roleColor, bio,
+              dicebear_seed: seed, linkedin_url: linkedinUrl, email,
+              is_lead: isLead, team_type: teamType,
+              display_order: displayOrder, is_visible: isVisible,
+              profile_picture_url: profilePictureUrl, branch, year
+            })}
+              className="w-full py-4 rounded-[16px] bg-[#4285F4] text-white font-syne font-bold text-lg hover:bg-[#3A75E0] transition-all shadow-[0_4px_16px_rgba(66,133,244,0.3)] flex justify-center items-center gap-2">
+              <Save size={18} /> {member ? "Publish Member Updates" : "Complete Onboarding"}
+            </button>
+          </div>
+
         </div>
       </motion.div>
     </motion.div>

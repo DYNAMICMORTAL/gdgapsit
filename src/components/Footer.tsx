@@ -115,7 +115,7 @@ const Footer = () => {
         <div>
           <span className="font-syne font-semibold text-white/40 text-xs uppercase tracking-[0.12em] mb-4 block">Navigate</span>
           <div className="flex flex-col gap-2.5">
-            {[["Home","/"],["About","/about"],["Events","/events"],["Calendar","/calendar"],["Gallery","/gallery"],["Skills","/skills"],["Certificates","/certificates"],["Contact","/contact"]].map(([l,to]) => (
+            {[["Home","/"],["About","/about"],["Events","/events"],["Calendar","/calendar"],["Gallery","/gallery"],["Skills","/skills"],["Contact","/contact"]].map(([l,to]) => (
               <Link key={l} to={to}
                 className="font-dm text-white/40 text-sm hover:text-white transition-colors w-fit hover:translate-x-1 transform">
                 {l}

@@ -1,27 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import { GDGLogo, GoogleGLogo } from "@/components/Doodles";
 import { Aurora } from "@/components/AnimationUtils";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 const Login = () => {
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (localStorage.getItem("gdg_admin_token")) {
+      navigate("/admin", { replace: true });
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === "admin@gdgapsit.com" && password === "gdgapsit2025") {
-      localStorage.setItem("gdg-admin-auth", "true");
-      localStorage.setItem("gdg_admin_auth", "true");
+    setIsSubmitting(true);
+
+    try {
+      const { token } = await api.login(email, password);
+      localStorage.setItem("gdg_admin_token", token);
       toast({ title: "Welcome back!", description: "Redirecting to admin dashboard..." });
-      navigate("/admin");
-    } else {
+      navigate("/admin", { replace: true });
+    } catch {
       toast({ title: "Invalid credentials", description: "Please check your email and password.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -92,9 +104,9 @@ const Login = () => {
               </button>
             </div>
             <p className="font-dm text-g-blue text-sm text-right cursor-pointer hover:underline">Forgot password?</p>
-            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit"
-              className="bg-ink text-white w-full py-3 sm:py-3.5 rounded-2xl font-syne font-bold active:scale-95 transition-all">
-              Sign In as Admin
+            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isSubmitting}
+              className="bg-ink text-white w-full py-3 sm:py-3.5 rounded-2xl font-syne font-bold active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed">
+              {isSubmitting ? "Signing In..." : "Sign In as Admin"}
             </motion.button>
           </form>
 

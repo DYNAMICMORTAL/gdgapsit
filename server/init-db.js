@@ -39,11 +39,26 @@ CREATE TABLE IF NOT EXISTS events (
   banner_color_1   VARCHAR(10) DEFAULT '#4285F4',
   banner_color_2   VARCHAR(10) DEFAULT '#1A73E8',
   gradient         TEXT,
+  image_url        TEXT,
+  speakers         JSONB DEFAULT '[]'::jsonb,
+  agenda           JSONB DEFAULT '[]'::jsonb,
+  faqs             JSONB DEFAULT '[]'::jsonb,
+  sponsors         JSONB DEFAULT '[]'::jsonb,
   quiz_enabled     BOOLEAN DEFAULT FALSE,
+  quiz_data        JSONB DEFAULT '[]'::jsonb,
+  quiz_state       JSONB DEFAULT '{}'::jsonb,
   display_index    INT DEFAULT 0,
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS speakers JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS agenda JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS faqs JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS sponsors JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS quiz_data JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS quiz_state JSONB DEFAULT '{}'::jsonb;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'events_updated_at') THEN
@@ -75,9 +90,16 @@ CREATE TABLE IF NOT EXISTS team_members (
   team_type      VARCHAR(20)  DEFAULT 'core' CHECK (team_type IN ('core','extended')),
   display_order  SMALLINT DEFAULT 0,
   is_visible     BOOLEAN DEFAULT TRUE,
+  profile_picture_url TEXT,
+  branch         VARCHAR(80),
+  year           VARCHAR(20),
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS branch VARCHAR(80);
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS year VARCHAR(20);
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'team_members_updated_at') THEN

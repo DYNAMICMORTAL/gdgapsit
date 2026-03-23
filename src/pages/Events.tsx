@@ -495,7 +495,7 @@ export default function Events() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"chronicle" | "list">("chronicle");
 
-  const { data: dbEvents = [], isLoading } = useEvents();
+  const { data: dbEvents = [], isLoading, isError, error } = useEvents();
 
   const allEvents = Array.isArray(dbEvents) ? dbEvents.map((e, index) => {
     let doodle = "notebook";
@@ -588,18 +588,31 @@ export default function Events() {
 
       {/* CONTENT */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
-        <AnimatePresence mode="wait">
-          {viewMode === "chronicle" ? (
-            <motion.div key="chronicle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {grouped.map((g, gi) => <ChronicleMonth key={g.month} group={g} groupIndex={gi}/>)}
-            </motion.div>
-          ) : (
-            <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <ListMonth events={filtered}/>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {grouped.length === 0 && viewMode === "chronicle" && (
+        {isLoading ? (
+          <div className="text-center py-20">
+            <p className="font-dm text-[#6B6B6B] text-lg">Loading events...</p>
+          </div>
+        ) : isError ? (
+          <div className="text-center py-20">
+            <p className="font-dm text-[#111] text-lg">We couldn&apos;t load events right now.</p>
+            <p className="font-dm text-[#6B6B6B] text-sm mt-3">
+              {error instanceof Error ? error.message : "The API request failed."}
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            {viewMode === "chronicle" ? (
+              <motion.div key="chronicle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {grouped.map((g, gi) => <ChronicleMonth key={g.month} group={g} groupIndex={gi}/>)}
+              </motion.div>
+            ) : (
+              <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <ListMonth events={filtered}/>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+        {grouped.length === 0 && viewMode === "chronicle" && !isLoading && !isError && (
           <div className="text-center py-20"><p className="font-dm text-[#6B6B6B] text-lg">No events found for this filter.</p></div>
         )}
       </div>

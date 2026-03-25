@@ -1165,6 +1165,22 @@ const MemberModal = ({ member, onClose, onSave }: { member: any | null; onClose:
   const [profilePictureUrl, setProfilePictureUrl] = useState(member?.profile_picture_url || "");
   const [branch, setBranch] = useState(member?.branch || "CS");
   const [year, setYear] = useState(member?.year || "TE");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  // Handle image file selection and upload
+  const handleImageUpload = async (file: File) => {
+    setUploadError("");
+    setIsUploadingImage(true);
+    try {
+      const result = await api.admin.uploadTeamImage(file);
+      setProfilePictureUrl(result.profile_picture_url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   // Determines which avatar to render for the preview
   const activeAvatar = profilePictureUrl.trim() !== "" ? profilePictureUrl : `https://api.dicebear.com/9.x/micah/svg?seed=${seed || "preview"}`;
@@ -1217,8 +1233,48 @@ const MemberModal = ({ member, onClose, onSave }: { member: any | null; onClose:
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="font-caveat text-ink-muted text-base">Profile Image URL (Overrides Dicebear)</label>
-            <input value={profilePictureUrl} onChange={e => setProfilePictureUrl(e.target.value)} className="border border-foreground/10 rounded-[12px] px-4 py-3 font-dm text-sm text-ink outline-none focus:border-[#4285F4] transition-all" placeholder="https://..." />
+            <label className="font-caveat text-ink-muted text-base">Profile Picture (Overrides Dicebear)</label>
+            <div 
+              className="relative border-2 border-dashed border-foreground/20 rounded-[12px] px-4 py-6 bg-foreground/[0.01] transition-all hover:border-[#4285F4]/40 cursor-pointer text-center"
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#4285F4]', 'bg-[#4285F4]/5'); }}
+              onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#4285F4]', 'bg-[#4285F4]/5'); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('border-[#4285F4]', 'bg-[#4285F4]/5');
+                if (e.dataTransfer.files?.[0]) handleImageUpload(e.dataTransfer.files[0]);
+              }}
+            >
+              <input 
+                type="file" 
+                accept="image/jpeg,image/png,image/webp" 
+                onChange={(e) => { if (e.currentTarget.files?.[0]) handleImageUpload(e.currentTarget.files[0]); }}
+                disabled={isUploadingImage}
+                className="absolute inset-0 opacity-0 cursor-pointer" 
+                style={{ pointerEvents: isUploadingImage ? 'none' : 'auto' }}
+              />
+              {isUploadingImage ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-[#4285F4] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-dm text-sm text-ink-muted">Uploading...</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <svg className="w-6 h-6 text-[#4285F4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
+                  <span className="font-dm text-sm font-semibold text-ink">Drag image here or click</span>
+                  <span className="font-dm text-xs text-ink-muted">JPG, PNG or WebP • Max 5MB</span>
+                </div>
+              )}
+            </div>
+            {uploadError && <p className="font-dm text-xs text-[#EA4335]">{uploadError}</p>}
+            {profilePictureUrl && (
+              <button 
+                type="button"
+                onClick={() => { setProfilePictureUrl(""); setUploadError(""); }}
+                className="text-xs font-dm font-semibold text-[#EA4335] hover:text-[#EA4335]/80 transition-colors"
+              >
+                ✕ Remove Image (use DiceBear)
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

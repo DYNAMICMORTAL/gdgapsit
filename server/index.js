@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import pool from './db.js';
 
 const app = express();
@@ -15,6 +19,21 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// ── Configure Multer for file uploads ────────────────────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error('Only JPG, PNG, and WebP images are allowed'));
+    }
+    cb(null, true);
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // ── Auth middleware ──────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -442,6 +461,67 @@ app.delete('/api/admin/team/:id', requireAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete member' });
+  }
+});
+
+// ── POST /api/admin/team/upload ──────────────────────────────────
+app.post('/api/admin/team/upload', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY;
+    const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret) {
+      return res.status(500).json({ error: 'Cloudinary configuration missing' });
+    }
+
+    // Create FormData with file buffer
+    const formData = new FormData();
+    
+    // Append file buffer as a Blob-like object
+    const mimeType = req.file.mimetype;
+    const originalName = req.file.originalname;
+    formData.append('file', new Blob([req.file.buffer], { type: mimeType }), originalName);
+    
+    const publicId = `gdgapsit_team_${Date.now()}`;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const folder = 'gdgapsit/team-members';
+    
+    // Build signature string (order matters!)
+    const signatureString = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${cloudinaryApiSecret}`;
+    const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
+
+    formData.append('public_id', publicId);
+    formData.append('folder', folder);
+    formData.append('api_key', cloudinaryApiKey);
+    formData.append('timestamp', timestamp);
+    formData.append('signature', signature);
+
+    const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`;
+    const uploadResponse = await fetch(cloudinaryUrl, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.text();
+      console.error('Cloudinary error:', errorData);
+      throw new Error(`Cloudinary upload failed: ${uploadResponse.statusText}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+
+    res.json({
+      success: true,
+      profile_picture_url: uploadData.secure_url
+    });
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });
 

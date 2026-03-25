@@ -46,7 +46,7 @@ const About = () => {
                 <div className="relative flex-shrink-0">
                   <div className="w-32 h-32 sm:w-44 sm:h-44 rounded-full p-[3px] bg-gradient-to-br from-[#4285F4] via-[#EA4335] to-[#FBBC04]">
                     <img
-                      src={`https://api.dicebear.com/9.x/micah/svg?seed=${lead.dicebear_seed ?? lead.name}`}
+                      src={lead.profile_picture_url || `https://api.dicebear.com/9.x/micah/svg?seed=${lead.dicebear_seed ?? lead.name}`}
                       alt={lead.name}
                       className="w-full h-full rounded-full bg-white object-cover"
                     />
@@ -95,8 +95,8 @@ const About = () => {
           {coreMembers.map((member: any, i: number) => (
             <FadeInSection key={member.id ?? member.name} delay={i * 0.08}>
               <motion.div whileHover={{ y: -6 }} className="bg-white rounded-2xl p-4 sm:p-6 border border-foreground/[0.06] shadow-sm hover:shadow-lg transition-all group">
-                <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${member.dicebear_seed ?? member.name}`} alt={member.name}
-                  className="w-14 h-14 sm:w-20 sm:h-20 rounded-full mx-auto border-[3px] bg-white" style={{ borderColor: member.role_color ?? '#4285F4' }} />
+                <img src={member.profile_picture_url || `https://api.dicebear.com/9.x/micah/svg?seed=${member.dicebear_seed ?? member.name}`} alt={member.name}
+                  className="w-14 h-14 sm:w-20 sm:h-20 rounded-full mx-auto border-[3px] bg-white object-cover" style={{ borderColor: member.role_color ?? '#4285F4' }} />
                 <h3 className="font-syne font-bold text-ink text-sm sm:text-lg mt-3 sm:mt-4 text-center">{member.name}</h3>
                 <div className="flex justify-center mt-1.5 sm:mt-2">
                   <span className="font-caveat font-semibold text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1 rounded-full"
@@ -166,8 +166,8 @@ const About = () => {
                 {extMembers.map((member: any, i: number) => (
                   <motion.div key={member.id ?? member.name} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                     className="bg-cream rounded-2xl p-4 sm:p-5 text-center">
-                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${member.dicebear_seed ?? member.name}`} alt={member.name}
-                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full mx-auto border-[3px] bg-white" style={{ borderColor: member.role_color ?? '#4285F4' }} />
+                    <img src={member.profile_picture_url || `https://api.dicebear.com/9.x/micah/svg?seed=${member.dicebear_seed ?? member.name}`} alt={member.name}
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full mx-auto border-[3px] bg-white object-cover" style={{ borderColor: member.role_color ?? '#4285F4' }} />
                     <h3 className="font-syne font-bold text-ink text-xs sm:text-sm mt-2 sm:mt-3">{member.name}</h3>
                     <span className="font-caveat text-xs" style={{ color: member.role_color ?? '#4285F4' }}>{member.role}</span>
                     <p className="font-dm text-ink-muted text-[10px] sm:text-xs mt-1 sm:mt-2 hidden sm:block">{member.bio}</p>

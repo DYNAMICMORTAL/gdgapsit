@@ -56,6 +56,25 @@ export const api = {
     updateMember: (id: number, data: object) =>
       apiFetch(`/admin/team/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteMember: (id: number) => apiFetch(`/admin/team/${id}`, { method: 'DELETE' }),
+    uploadTeamImage: async (file: File) => {
+      const token = localStorage.getItem('gdg_admin_token');
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch(`${BASE}/admin/team/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || 'Upload failed');
+      }
+      return res.json();
+    },
 
     addGalleryItem: (data: object) => apiFetch('/admin/gallery', { method: 'POST', body: JSON.stringify(data) }),
     deleteGalleryItem: (id: number) => apiFetch(`/admin/gallery/${id}`, { method: 'DELETE' }),

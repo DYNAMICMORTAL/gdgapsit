@@ -494,6 +494,7 @@ const EventDetail = () => {
     gradient: event.gradient ?? `from-[${event.banner_color_1 ?? '#4285F4'}] to-[${event.banner_color_2 ?? '#1A73E8'}]`,
     longDescription: event.long_description ?? event.description ?? '',
     interCollege: event.is_inter_college ?? false,
+    registrationLink: event.registration_link ?? '',
     topics: safeParseArray(event.topics),
     speakers: safeParseArray(event.speakers),
     agenda: safeParseArray(event.agenda),
@@ -731,15 +732,25 @@ const EventDetail = () => {
                 </div>
 
                 {/* Primary Call To Action - RSVP (Luma vibe) */}
-                <button className={cn(
-                  "w-full mt-6 py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2",
-                  new Date(e.date.split("–")[0]).getTime() < Date.now()
-                    ? "bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
-                    : "bg-[#0F1115] text-white hover:opacity-90 active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.2)]"
-                )}>
-                  {new Date(e.date.split("–")[0]).getTime() < Date.now() ? "Event Closed" : "Register Now"}
-                  {new Date(e.date.split("–")[0]).getTime() >= Date.now() && <ArrowRight size={16} />}
-                </button>
+                {new Date(e.date.split("–")[0]).getTime() < Date.now() ? (
+                  <button disabled className={cn(
+                    "w-full mt-6 py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
+                  )}>
+                    Event Closed
+                  </button>
+                ) : e.registrationLink ? (
+                  <a href={e.registrationLink} target="_blank" rel="noopener noreferrer" className={cn(
+                    "w-full mt-6 py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-[#0F1115] text-white hover:opacity-90 active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.2)]"
+                  )}>
+                    Register Now <ArrowRight size={16} />
+                  </a>
+                ) : (
+                  <button disabled className={cn(
+                    "w-full mt-6 py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
+                  )}>
+                    Registration Link Not Available
+                  </button>
+                )}
 
                 {/* Secondary Actions */}
                 <div className="grid grid-cols-2 gap-3 mt-3">
@@ -771,15 +782,25 @@ const EventDetail = () => {
       <div className={cn(
         "fixed bottom-0 inset-x-0 p-4 bg-white/80 backdrop-blur-xl border-t border-foreground/10 z-50 lg:hidden shadow-2xl transition-transform duration-300 translate-y-0"
       )}>
-        <button className={cn(
-          "w-full py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2",
-          new Date(e.date.split("–")[0]).getTime() < Date.now()
-            ? "bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
-            : "bg-[#0F1115] text-white active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.2)]"
-        )}>
-          {new Date(e.date.split("–")[0]).getTime() < Date.now() ? "Event Closed" : "Register Now"}
-          {new Date(e.date.split("–")[0]).getTime() >= Date.now() && <ArrowRight size={16} />}
-        </button>
+        {new Date(e.date.split("–")[0]).getTime() < Date.now() ? (
+          <button disabled className={cn(
+            "w-full py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
+          )}>
+            Event Closed
+          </button>
+        ) : e.registrationLink ? (
+          <a href={e.registrationLink} target="_blank" rel="noopener noreferrer" className={cn(
+            "w-full py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-[#0F1115] text-white active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.2)]"
+          )}>
+            Register Now <ArrowRight size={16} />
+          </a>
+        ) : (
+          <button disabled className={cn(
+            "w-full py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
+          )}>
+            Registration Link Not Available
+          </button>
+        )}
       </div>
 
       <ShareEventModal event={{ title: e.title, slug: e.slug, date: e.date, location: e.location, typeColor: e.typeColor }}

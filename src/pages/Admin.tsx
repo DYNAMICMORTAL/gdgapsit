@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, CalendarDays, Users, Image as ImageIcon, Settings, LogOut,
   Plus, Pencil, Trash2, X, TrendingUp, Eye, EyeOff, Search, UserPlus, Linkedin, Mail,
   CalendarPlus, ImagePlus as ImagePlusIcon, ExternalLink, Globe, Zap, BarChart3, ToggleLeft, ToggleRight,
-  Calendar as CalendarIcon, CheckCircle, Radio, MapPin, ArrowRight,
+  Calendar as CalendarIcon, CheckCircle, Radio, MapPin, ArrowRight, Award,
   Save,
   Check
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { GDGLogo } from "@/components/Doodles";
+import { AdminCertificates } from "@/components/AdminCertificates";
 import { api } from "@/lib/api";
 import {
   useAdminEvents, useAdminStats, useDeleteEvent, useUpdateEvent, useCreateEvent,
   useToggleQuiz, useTeam, useDeleteMember, useUpdateMember, useCreateMember,
-  useSettings, useSaveSettings,
+  useSettings, useSaveSettings, useUpdateQuizState,
 } from "@/hooks/useDB";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountUp } from "@/components/AnimationUtils";
@@ -22,76 +24,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-
-const AdminAuthGate = ({ onAuth }: { onAuth: (token: string) => void }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { token } = await api.login(email, password);
-      localStorage.setItem("gdg_admin_token", token);
-      onAuth(token);
-    } catch (e: any) {
-      setError(e.message || "Invalid credentials");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center relative overflow-hidden">
-      <div className="absolute top-20 left-20 w-96 h-96 rounded-full bg-[#4285F4]/[0.08] blur-[120px]" />
-      <div className="absolute bottom-20 right-20 w-80 h-80 rounded-full bg-[#EA4335]/[0.08] blur-[100px]" />
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-[#161616] border border-white/[0.08] rounded-[32px] p-10 w-full max-w-sm relative">
-        <div className="flex flex-col items-center mb-8">
-          <GDGLogo size={44} />
-          <h1 className="font-syne font-black text-white text-2xl mt-4">Admin Panel</h1>
-          <p className="font-dm text-white/40 text-sm mt-1 text-center">GDG on Campus APSIT</p>
-        </div>
-        <div className="flex flex-col gap-4">
-          <div className="border-b border-white/10 pb-3">
-            <label className="font-caveat text-white/50 text-base block mb-1">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="bg-transparent font-dm text-white text-base w-full outline-none placeholder:text-white/20" placeholder="admin@gdgapsit.com" />
-          </div>
-          <div className="border-b border-white/10 pb-3 relative">
-            <label className="font-caveat text-white/50 text-base block mb-1">Password</label>
-            <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
-              className="bg-transparent font-dm text-white text-base w-full outline-none placeholder:text-white/20 pr-8" placeholder="••••••••••" />
-            <button onClick={() => setShowPass(!showPass)} className="absolute right-0 bottom-4 text-white/30 hover:text-white/60">
-              {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-        </div>
-        {error && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-dm text-[#EA4335] text-xs mt-3">{error}</motion.p>}
-        <motion.button onClick={handleLogin} disabled={loading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-          className="w-full mt-6 py-4 rounded-[16px] font-syne font-bold text-base bg-white text-ink disabled:opacity-60 transition-all">
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="w-4 h-4 border-2 border-ink/20 border-t-ink rounded-full inline-block" />
-              Verifying...
-            </span>
-          ) : "Sign In →"}
-        </motion.button>
-        <span className="absolute top-4 right-4 font-dm-mono text-white/[0.05] text-4xl">{"{ }"}</span>
-        <span className="absolute bottom-4 left-4 font-dm-mono text-white/[0.05] text-2xl">{"</>"}</span>
-      </motion.div>
-    </div>
-  );
-};
-
-// ========== AUTH GATE ==========
 
 // ========== QUIZ TOGGLE ROW - uses DB ==========
 const QuizToggleRow = ({ event }: { event: any }) => {
@@ -130,6 +62,7 @@ const QuizToggleRow = ({ event }: { event: any }) => {
 const sidebarItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "events", label: "Events", icon: CalendarDays },
+  { id: "certificates", label: "Certificates", icon: Award },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "team", label: "Team Members", icon: Users },
   { id: "gallery", label: "Gallery", icon: ImageIcon },
@@ -178,6 +111,7 @@ const getEventStatus = (event: any) => {
 
 // ========== MAIN ADMIN ==========
 const Admin = () => {
+  const navigate = useNavigate();
   const [isAuth, setIsAuth] = useState(() => !!localStorage.getItem("gdg_admin_token"));
   const [tab, setTab] = useState("dashboard");
   const [showEventModal, setShowEventModal] = useState(false);
@@ -185,6 +119,13 @@ const Admin = () => {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuth) {
+      navigate("/login", { replace: true });
+    }
+  }, [isAuth, navigate]);
 
   // DB hooks
   const { data: eventsData = [], isLoading: eventsLoading } = useAdminEvents();
@@ -209,12 +150,36 @@ const Admin = () => {
   const updateMember = useUpdateMember();
   const createMember = useCreateMember();
   const saveSettings = useSaveSettings();
+  const [settingsForm, setSettingsForm] = useState<any>({});
 
-  if (!isAuth) return <AdminAuthGate onAuth={(token) => { setIsAuth(true); }} />;
+  useEffect(() => {
+    if (Object.keys(settingsData).length > 0) {
+      setSettingsForm(settingsData);
+    }
+  }, [settingsData]);
+
+  const handleSaveSettings = () => {
+    saveSettings.mutate(settingsForm);
+  };
+
+  const updateQuizState = useUpdateQuizState();
+
+  const handleUpdateQuizStatus = (slug: string, status: string, timer?: number) => {
+    const currentState = eventsData.find((e: any) => e.slug === slug)?.quiz_state || {};
+    const newState = {
+      ...currentState,
+      status,
+      timer: timer || currentState.timer || 60,
+      startTime: status === 'active' ? new Date().toISOString() : currentState.startTime,
+      participants: status === 'lobby' ? [] : (currentState.participants || [])
+    };
+    updateQuizState.mutate({ slug, state: newState });
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("gdg_admin_token");
     setIsAuth(false);
+    navigate("/login", { replace: true });
   };
 
   const handleDeleteEvent = (slug: string) => deleteEvent.mutate(slug);
@@ -639,6 +604,9 @@ const Admin = () => {
                 </div>
               )}
 
+              {/* ═══════ CERTIFICATES ═══════ */}
+              {tab === "certificates" && <AdminCertificates />}
+
               {/* ═══════ SETTINGS ═══════ */}
               {tab === "settings" && (
                 <div>
@@ -646,24 +614,24 @@ const Admin = () => {
                   {[
                     {
                       title: "Site Information", fields: [
-                        { label: "Club Name", default: "GDG on Campus APSIT" },
-                        { label: "Email Address", default: "gdgoncampus.apsit@gmail.com" },
-                        { label: "College", default: "A.P. Shah Institute of Technology, Thane" },
-                        { label: "Founded Year", default: "2022" },
+                        { label: "Club Name", key: "club_name" },
+                        { label: "Email Address", key: "email" },
+                        { label: "College", key: "college" },
+                        { label: "Founded Year", key: "founded_year" },
                       ]
                     },
                     {
                       title: "Social Links", fields: [
-                        { label: "GitHub", default: "https://github.com/gdg-apsit" },
-                        { label: "LinkedIn", default: "" },
-                        { label: "Instagram", default: "" },
-                        { label: "GDG Community", default: "https://gdg.community.dev" },
+                        { label: "GitHub URL", key: "github_url" },
+                        { label: "LinkedIn URL", key: "linkedin_url" },
+                        { label: "Instagram URL", key: "instagram_url" },
+                        { label: "GDG Community URL", key: "gdg_community_url" },
                       ]
                     },
                     {
                       title: "Admin Access", fields: [
-                        { label: "Admin Email", default: "admin@gdgapsit.com" },
-                        { label: "Change Password", default: "" },
+                        { label: "Admin Email", key: "admin_email" },
+                        { label: "Change Password", key: "admin_password" },
                       ]
                     },
                   ].map(group => (
@@ -673,14 +641,24 @@ const Admin = () => {
                         {group.fields.map(field => (
                           <div key={field.label} className="flex flex-col gap-1.5">
                             <label className="font-caveat text-ink-muted text-base">{field.label}</label>
-                            <input type={field.label.includes("Password") ? "password" : "text"} defaultValue={field.default}
-                              className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink bg-white outline-none focus:border-[#4285F4] focus:ring-2 focus:ring-[#4285F4]/10 transition-all" />
+                            <input
+                              type={field.key.includes("password") ? "password" : "text"}
+                              value={settingsForm[field.key] || ""}
+                              onChange={e => setSettingsForm({ ...settingsForm, [field.key]: e.target.value })}
+                              className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink bg-white outline-none focus:border-[#4285F4] focus:ring-2 focus:ring-[#4285F4]/10 transition-all"
+                            />
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
-                  <button className="bg-[#34A853] text-white px-6 py-3 rounded-[12px] font-syne font-bold text-sm hover:opacity-90 transition-opacity mt-2">Save Changes</button>
+                  <button
+                    onClick={handleSaveSettings}
+                    disabled={saveSettings.isPending}
+                    className="bg-[#34A853] text-white px-8 py-3.5 rounded-[12px] font-syne font-bold text-sm hover:opacity-90 transition-all active:scale-[0.98] mt-2 flex items-center gap-2"
+                  >
+                    {saveSettings.isPending ? "Saving..." : <><Save size={16} /> Save Changes</>}
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -692,6 +670,7 @@ const Admin = () => {
       <AnimatePresence>
         {showEventModal && (
           <EventModal event={editingEvent}
+            onUpdateQuizStatus={handleUpdateQuizStatus}
             onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
             onSave={(ev) => {
               if (editingEvent) {
@@ -726,7 +705,12 @@ const Admin = () => {
 };
 
 // ========== EVENT MODAL ==========
-const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: () => void; onSave: (e: any) => void }) => {
+const EventModal = ({ event, onClose, onSave, onUpdateQuizStatus }: { 
+  event: any | null; 
+  onClose: () => void; 
+  onSave: (e: any) => void;
+  onUpdateQuizStatus: (slug: string, status: string, timer?: number) => void;
+}) => {
   const [title, setTitle] = useState(event?.title || "");
   const [slug, setSlug] = useState(event?.slug || "");
   const [type, setType] = useState(event?.type || "Workshop");
@@ -737,6 +721,7 @@ const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: ()
   const [dateDisplay, setDateDisplay] = useState(event?.date_display || format(defaultDateStart, "MMM d, yyyy"));
 
   const [location, setLocation] = useState(event?.location || "");
+  const [registrationLink, setRegistrationLink] = useState(event?.registration_link || "");
   const [attendance, setAttendance] = useState(event?.attendance || "");
   const [description, setDescription] = useState(event?.description || "");
   const [longDescription, setLongDescription] = useState(event?.long_description || "");
@@ -831,6 +816,10 @@ const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: ()
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Location</label>
             <input value={location} onChange={e => setLocation(e.target.value)} className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
+          </div>
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <label className="font-caveat text-ink-muted text-base">Registration Link</label>
+            <input value={registrationLink} onChange={e => setRegistrationLink(e.target.value)} placeholder="e.g. https://gdg.community.dev/events/..." className="border border-foreground/10 rounded-[10px] px-4 py-2.5 font-dm text-sm text-ink outline-none focus:border-[#4285F4]" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="font-caveat text-ink-muted text-base">Attendance</label>
@@ -980,91 +969,111 @@ const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: ()
                  <div className="w-14 h-8 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[#34A853] after:content-[''] after:absolute after:top-[8px] after:left-[8px] after:bg-white after:border-gray-500 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-[#34A853]/20 border border-white/10 shadow-inner"></div>
                  <span className="ml-3 font-dm font-bold text-sm text-white pr-2">{quizEnabled ? 'Quiz On' : 'Quiz Off'}</span>
               </label>
-              {quizEnabled && (
-                <button className="bg-[#4285F4] text-white px-5 py-2 rounded-full font-dm font-bold text-xs hover:scale-105 transition-all flex items-center gap-2 shadow-[0_4px_15px_rgba(66,133,244,0.3)]">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                  </span>
-                  Host Live Session
-                </button>
+              {quizEnabled && event && (
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10 mt-4">
+                  <span className="font-dm text-[10px] uppercase font-bold text-white/40 w-full mb-1">Session Control: {event.quiz_state?.status || 'idle'}</span>
+                  <button 
+                    onClick={() => onUpdateQuizStatus(event.slug, 'lobby')}
+                    className={cn(
+                      "px-4 py-2 rounded-full font-dm font-bold text-xs transition-all flex items-center gap-2",
+                      event.quiz_state?.status === 'lobby' ? "bg-[#34A853] text-white" : "bg-white/10 text-white/60 hover:bg-white/20"
+                    )}
+                  >
+                    Open Lobby
+                  </button>
+                  <button 
+                    onClick={() => onUpdateQuizStatus(event.slug, 'active', 60)}
+                    disabled={event.quiz_state?.status !== 'lobby'}
+                    className={cn(
+                      "px-4 py-2 rounded-full font-dm font-bold text-xs transition-all flex items-center gap-2",
+                      event.quiz_state?.status === 'active' ? "bg-[#4285F4] text-white" : "bg-white/10 text-white/60 hover:bg-white/20 disabled:opacity-50"
+                    )}
+                  >
+                    Start Quiz (60s)
+                  </button>
+                  <button 
+                    onClick={() => onUpdateQuizStatus(event.slug, 'finished')}
+                    className="px-4 py-2 rounded-full bg-[#EA4335]/20 text-[#EA4335] border border-[#EA4335]/30 font-dm font-bold text-xs hover:bg-[#EA4335] hover:text-white transition-all"
+                  >
+                    End Quiz
+                  </button>
+                </div>
               )}
             </div>
             
             {quizEnabled && (
-               <div className="flex flex-col gap-8 z-10 transition-all">
+               <div className="flex flex-col gap-4 z-10 transition-all">
                   
                   {quizData.length === 0 && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 border-dashed rounded-[24px] p-12 flex flex-col items-center justify-center text-center relative overflow-hidden">
-                      <div className="w-20 h-20 bg-gradient-to-br from-[#4285F4] to-[#1A73E8] rounded-full shadow-[0_0_30px_rgba(66,133,244,0.3)] flex items-center justify-center text-white mb-6 text-3xl">✨</div>
-                      <h4 className="font-syne font-bold text-white text-xl">No Challenges Constructed</h4>
-                      <p className="font-dm text-white/40 text-sm mt-2 mb-8 max-w-sm">Craft the perfect quiz to challenge your attendees. They will earn points based on accuracy and speed.</p>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/5 border border-white/10 border-dashed rounded-[24px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                      <h4 className="font-syne font-bold text-white text-lg">No Challenges Constructed</h4>
+                      <p className="font-dm text-white/40 text-[12px] mt-1 mb-6 max-w-sm">Craft the perfect quiz to challenge your attendees.</p>
                       <button onClick={() => setQuizData([{ question: "", type: "mcq", options: ["", "", "", ""], correctIndex: 0, points: 100, explanation: "", correct_keywords: [] }])}
-                        className="bg-white text-black px-8 py-3.5 rounded-full font-syne font-bold text-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.2)]">
-                        <Plus size={16} /> Ignite First Question
+                        className="bg-white text-black px-6 py-2.5 rounded-full font-syne font-bold text-xs hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.2)]">
+                        <Plus size={14} /> Ignite First Question
                       </button>
                     </motion.div>
                   )}
                   
-                  {quizData.length > 0 && quizData.map((q, qIndex) => (
+                  {quizData.length > 0 && quizData.map((q: any, qIndex: number) => (
                     <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: qIndex * 0.05 }} key={qIndex} 
-                      className="bg-white/5 p-6 sm:p-8 rounded-[24px] border border-white/10 shadow-xl flex flex-col gap-6 relative group/card hover:border-white/20 transition-colors">
+                      className="bg-white/5 p-4 sm:p-5 rounded-[20px] border border-white/10 shadow-lg flex flex-col gap-4 relative group/card hover:border-white/20 transition-colors">
                        
-                       <div className="absolute top-0 right-0 p-4 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-2">
-                         <button onClick={() => setQuizData(quizData.filter((_, idx) => idx !== qIndex))} className="text-[#EA4335] bg-[#EA4335]/10 p-2.5 rounded-xl hover:bg-[#EA4335] hover:text-white transition-all shadow-sm"><Trash2 size={16} /></button>
+                       <div className="absolute top-2 right-2 p-2 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                         <button onClick={() => setQuizData(quizData.filter((_: any, idx: number) => idx !== qIndex))} className="text-[#EA4335] bg-[#EA4335]/10 p-1.5 rounded-lg hover:bg-[#EA4335] hover:text-white transition-all"><Trash2 size={14} /></button>
                        </div>
                        
-                       <div className="flex flex-col sm:flex-row gap-4 w-full relative">
-                         <div className="flex-1 relative mt-2 sm:mt-0">
-                           <span className="absolute -top-3 left-4 bg-[#4285F4] text-white font-dm-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-[0_0_10px_rgba(66,133,244,0.5)]">QUESTION {qIndex + 1}</span>
+                       <div className="flex flex-col sm:flex-row gap-3 w-full relative">
+                         <div className="flex-1 relative">
+                           <span className="font-dm-mono font-bold text-[9px] text-[#4285F4] uppercase tracking-widest block mb-1">QUESTION {qIndex + 1}</span>
                            <input value={q.question} placeholder="What will happen when you compile..." 
                              onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], question: e.target.value }; setQuizData(s); }} 
-                             className="w-full bg-black/40 border border-white/10 rounded-[16px] px-5 py-4 pt-5 font-dm text-base sm:text-lg font-bold text-white outline-none focus:border-[#4285F4] focus:bg-black/60 transition-all shadow-inner placeholder-white/20" />
+                             className="w-full bg-black/40 border border-white/10 rounded-[12px] px-4 py-3 font-dm text-sm font-bold text-white outline-none focus:border-[#4285F4] focus:bg-black/60 transition-all shadow-inner placeholder-white/10" />
                          </div>
-                         <div className="flex gap-3 mt-4 sm:mt-0 pt-2 sm:pt-0">
-                           <div className="flex flex-col gap-1 w-[110px]">
-                             <label className="text-[10px] uppercase font-dm font-bold text-white/40 ml-1">Type</label>
-                             <select value={q.type || "mcq"} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], type: e.target.value as "mcq"|"short" }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-sm rounded-[10px] px-3 py-3 outline-none focus:border-[#4285F4] appearance-none">
+                         <div className="flex gap-2 shrink-0 self-end sm:self-auto">
+                           <div className="flex flex-col gap-1 w-[90px]">
+                             <label className="text-[9px] uppercase font-dm font-bold text-white/40">Type</label>
+                             <select value={q.type || "mcq"} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], type: e.target.value as "mcq"|"short" }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-[12px] rounded-[8px] px-2 py-2 outline-none focus:border-[#4285F4] appearance-none">
                                <option value="mcq" className="bg-[#161616]">MCQ</option>
                                <option value="short" className="bg-[#161616]">Short Ans</option>
                              </select>
                            </div>
-                           <div className="flex flex-col gap-1 w-[80px]">
-                             <label className="text-[10px] uppercase font-dm font-bold text-white/40 ml-1">Points</label>
-                             <input type="number" value={q.points ?? 100} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], points: parseInt(e.target.value)||0 }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-sm rounded-[10px] px-3 py-3 outline-none focus:border-[#4285F4] text-center" />
+                           <div className="flex flex-col gap-1 w-[60px]">
+                             <label className="text-[9px] uppercase font-dm font-bold text-white/40">Points</label>
+                             <input type="number" value={q.points ?? 100} onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], points: parseInt(e.target.value)||0 }; setQuizData(s); }} className="bg-white/10 border border-white/10 text-white font-dm text-[12px] rounded-[8px] px-2 py-2 outline-none focus:border-[#4285F4] text-center" />
                            </div>
                          </div>
                        </div>
                        
                        {(q.type === "mcq" || !q.type) && (
-                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                             {(q.options || []).map((opt: string, oIndex: number) => {
                                const isCorrect = q.correctIndex === oIndex;
                                return (
-                                 <div key={oIndex} className={cn("flex flex-col gap-3 rounded-[16px] px-5 py-4 transition-all relative overflow-hidden group/opt", 
-                                     isCorrect ? 'bg-[#34A853]/10 border sm:border-2 border-[#34A853] shadow-[0_0_20px_rgba(52,168,83,0.15)]' : 'bg-white/5 border border-white/5 hover:border-white/20')}>
+                                 <div key={oIndex} className={cn("flex flex-col gap-2 rounded-[12px] px-4 py-3 transition-all relative overflow-hidden group/opt", 
+                                     isCorrect ? 'bg-[#34A853]/15 border border-[#34A853] shadow-[0_0_15px_rgba(52,168,83,0.1)]' : 'bg-white/5 border border-white/5 hover:border-white/20')}>
                                     
                                     <div className="flex items-center justify-between w-full">
-                                      <span className={cn("font-syne font-black text-sm px-2.5 py-0.5 rounded-md", isCorrect ? "bg-[#34A853] text-white" : "bg-white/10 text-white/40")}>
+                                      <span className={cn("font-syne font-black text-[10px] px-2 py-0.5 rounded", isCorrect ? "bg-[#34A853] text-white" : "bg-white/10 text-white/40")}>
                                         {["A", "B", "C", "D"][oIndex]}
                                       </span>
                                       
-                                      <label className="flex items-center gap-2 cursor-pointer select-none group/radio">
+                                      <label className="flex items-center gap-1.5 cursor-pointer select-none group/radio">
                                         <input type="radio" name={`correct-${qIndex}`} checked={isCorrect} 
                                           onChange={() => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], correctIndex: oIndex }; setQuizData(s); }} 
                                           className="hidden" />
-                                        <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", isCorrect ? "border-[#34A853] bg-[#34A853] scale-110" : "border-white/20 group-hover/radio:border-white/50")}>
-                                          {isCorrect && <Check size={12} strokeWidth={4} className="text-white" />}
+                                        <div className={cn("w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all", isCorrect ? "border-[#34A853] bg-[#34A853]" : "border-white/20 group-hover/radio:border-white/50")}>
+                                          {isCorrect && <Check size={8} strokeWidth={4} className="text-white" />}
                                         </div>
-                                        <span className={cn("font-dm font-bold text-xs transition-colors", isCorrect ? "text-[#34A853]" : "text-white/40 group-hover/radio:text-white/70")}>
-                                          {isCorrect ? "Correct Answer" : "Mark Correct"}
+                                        <span className={cn("font-dm font-bold text-[10px] transition-colors", isCorrect ? "text-[#34A853]" : "text-white/40 group-hover/radio:text-white/70")}>
+                                          {isCorrect ? "Correct" : "Correct?"}
                                         </span>
                                       </label>
                                     </div>
 
-                                    <input value={opt} placeholder={`Type option ${["A","B","C","D"][oIndex]} here...`} 
+                                    <input value={opt} placeholder={`Option ${["A","B","C","D"][oIndex]}...`} 
                                       onChange={e => { const s = [...quizData]; const newOpt = [...s[qIndex].options]; newOpt[oIndex] = e.target.value; s[qIndex] = { ...s[qIndex], options: newOpt }; setQuizData(s); }} 
-                                      className={cn("w-full bg-transparent font-dm text-sm sm:text-base outline-none z-10 font-medium", isCorrect ? "text-[#34A853] placeholder-[#34A853]/40" : "text-white placeholder-white/20")} />
+                                      className={cn("w-full bg-transparent font-dm text-[13px] outline-none z-10 font-medium", isCorrect ? "text-white" : "text-white/60 placeholder-white/10")} />
                                  </div>
                                );
                             })}
@@ -1072,11 +1081,11 @@ const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: ()
                        )}
 
                        {q.type === "short" && (
-                         <div className="bg-white/5 border border-white/10 rounded-[16px] px-5 py-4">
-                           <label className="text-[10px] uppercase font-dm font-bold text-[#FBBC04] tracking-widest block mb-2">Accepted Keywords (Comma Separated)</label>
-                           <input value={(q.correct_keywords||[]).join(", ")} placeholder="e.g. react, hooks, functional" 
+                         <div className="bg-white/5 border border-white/10 rounded-[12px] px-4 py-3">
+                           <label className="text-[9px] uppercase font-dm font-bold text-[#FBBC04] tracking-widest block mb-1">Keywords</label>
+                           <input value={(q.correct_keywords||[]).join(", ")} placeholder="e.g. react, hooks" 
                               onChange={e => { const s = [...quizData]; s[qIndex] = { ...s[qIndex], correct_keywords: e.target.value.split(",").map((k: string) => k.trim()).filter(Boolean) }; setQuizData(s); }}
-                              className="w-full bg-transparent font-dm text-base sm:text-lg outline-none text-white placeholder-white/20" />
+                              className="w-full bg-transparent font-dm text-sm outline-none text-white placeholder-white/10" />
                          </div>
                        )}
 
@@ -1124,7 +1133,8 @@ const EventModal = ({ event, onClose, onSave }: { event: any | null; onClose: ()
                 faqs: JSON.stringify(faqs),
                 sponsors: JSON.stringify(sponsors),
                 quiz_enabled: quizEnabled,   // Persisting quiz engine
-                quiz_data: JSON.stringify(quizData)
+                quiz_data: JSON.stringify(quizData),
+                registration_link: registrationLink,
               });
             }}
               className="w-full py-4 rounded-[16px] bg-[#4285F4] text-white font-syne font-bold text-base hover:bg-[#3A75E0] transition-all shadow-[0_4px_16px_rgba(66,133,244,0.3)]">

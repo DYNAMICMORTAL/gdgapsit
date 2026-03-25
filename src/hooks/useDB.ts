@@ -136,3 +136,13 @@ export function useSaveSettings() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   });
 }
+export function useUpdateQuizState() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slug, state }: { slug: string; state: object }) => api.admin.updateQuizState(slug, state),
+    onSuccess: (_, { slug }) => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      qc.invalidateQueries({ queryKey: ['event', slug] });
+    },
+  });
+}

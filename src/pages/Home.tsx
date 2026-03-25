@@ -568,7 +568,7 @@ const Home = () => {
           <FadeInSection>
             <span className="font-caveat text-ink-muted text-xl">ready to build something?</span>
             <h2 className="font-syne font-black text-ink mt-3 leading-tight" style={{ fontSize: "clamp(2.8rem, 11vw, 5rem)" }}>
-              Join <span className="text-g-blue">200+</span><br /><span className="text-g-red">builders</span>
+              Join <span className="text-g-blue">1800+</span><br /><span className="text-g-red">builders</span>
             </h2>
             <p className="font-dm text-ink-muted text-base sm:text-lg mt-4">Students learning, building, and growing together at APSIT.</p>
             <div className="flex items-center justify-center gap-3 mt-8">
@@ -577,10 +577,10 @@ const Home = () => {
                   <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${seed}`} alt={seed} className="w-full h-full" />
                 </div>
               ))}
-              <span className="font-dm text-ink-muted text-sm ml-3">+195 more</span>
+              <span className="font-dm text-ink-muted text-sm ml-3">+1795 more</span>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mt-8 px-4 sm:px-0">
-              <a href="https://gdg.community.dev" target="_blank" rel="noopener noreferrer"
+              <a href="https://gdg.community.dev/gdg-on-campus-ap-shah-institute-of-technology-thane-india" target="_blank" rel="noopener noreferrer"
                 className="w-full sm:w-auto bg-ink text-white px-8 py-3.5 rounded-full font-syne font-bold hover:-translate-y-0.5 hover:shadow-xl active:scale-95 transition-all text-center">
                 Join Our Community →
               </a>

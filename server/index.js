@@ -8,11 +8,11 @@ const app = express();
 const PORT = process.env.API_PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'gdgapsit-secret-2025';
 
-app.use(cors({ 
-  origin: process.env.NODE_ENV === 'production' 
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production'
     ? true // reflect-origin (or specify your vercel domain)
-    : 'http://localhost:8080', 
-  credentials: true 
+    : 'http://localhost:8080',
+  credentials: true
 }));
 app.use(express.json());
 
@@ -90,6 +90,42 @@ app.get('/api/gallery', async (req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch gallery' });
+  }
+});
+
+// ── POST /api/events/:slug/quiz/join ──────────────────────────────
+app.post('/api/events/:slug/quiz/join', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    const { rows: [event] } = await pool.query(
+      `SELECT quiz_state FROM events WHERE slug = $1`,
+      [req.params.slug]
+    );
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    let state = event.quiz_state || {};
+    if (state.status !== 'lobby') {
+      return res.status(400).json({ error: 'Quiz is not in lobby state' });
+    }
+
+    const participants = state.participants || [];
+    if (!participants.some(p => p.name === name)) {
+      participants.push({ name, joinedAt: new Date().toISOString() });
+    }
+
+    state.participants = participants;
+
+    await pool.query(
+      `UPDATE events SET quiz_state = $1 WHERE slug = $2`,
+      [JSON.stringify(state), req.params.slug]
+    );
+
+    res.json({ success: true, participants });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to join quiz lobby' });
   }
 });
 
@@ -214,7 +250,7 @@ app.post('/api/admin/events', requireAuth, async (req, res) => {
         );
       }
     }
-    
+
     if (quiz_data !== undefined) {
       const parsedQuizData = typeof quiz_data === 'string' ? JSON.parse(quiz_data) : quiz_data;
       if (Array.isArray(parsedQuizData)) {
@@ -222,20 +258,20 @@ app.post('/api/admin/events', requireAuth, async (req, res) => {
           const q = parsedQuizData[i];
           const qType = q.type || 'mcq';
           const points = q.points || 100;
-          
+
           const { rows: [insertedQ] } = await client.query(
             `INSERT INTO quiz_questions (event_id, question_text, type, correct_keywords, correct_option, explanation, points, position)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
             [event.id, q.question, qType, q.correct_keywords || [], q.correctIndex ?? 0, q.explanation || '', points, i]
           );
-          
+
           if (qType === 'mcq' && Array.isArray(q.options)) {
-             for (let j = 0; j < q.options.length; j++) {
-                await client.query(
-                  `INSERT INTO quiz_options (question_id, option_text, position) VALUES ($1, $2, $3)`,
-                  [insertedQ.id, q.options[j], j]
-                );
-             }
+            for (let j = 0; j < q.options.length; j++) {
+              await client.query(
+                `INSERT INTO quiz_options (question_id, option_text, position) VALUES ($1, $2, $3)`,
+                [insertedQ.id, q.options[j], j]
+              );
+            }
           }
         }
       }
@@ -258,10 +294,10 @@ app.put('/api/admin/events/:slug', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const updatable = ['title','type','date_display','date_start','date_end','short_date','month','location','description',
-      'long_description','attendance','duration','format','is_inter_college','is_featured',
-      'badge_color','type_color','banner_color_1','banner_color_2','gradient','image_url',
-      'quiz_enabled','display_index','speakers','agenda','faqs','sponsors'];
+    const updatable = ['title', 'type', 'date_display', 'date_start', 'date_end', 'short_date', 'month', 'location', 'description',
+      'long_description', 'attendance', 'duration', 'format', 'is_inter_college', 'is_featured',
+      'badge_color', 'type_color', 'banner_color_1', 'banner_color_2', 'gradient', 'image_url',
+      'quiz_enabled', 'display_index', 'speakers', 'agenda', 'faqs', 'sponsors', 'registration_link'];
     const sets = updatable
       .filter(k => eventData[k] !== undefined)
       .map((k, i) => `${k} = $${i + 2}`);
@@ -288,27 +324,27 @@ app.put('/api/admin/events/:slug', requireAuth, async (req, res) => {
     if (quiz_data !== undefined) {
       await client.query(`UPDATE events SET quiz_data = $1 WHERE id = $2`, [JSON.stringify(quiz_data), event.id]);
       await client.query(`DELETE FROM quiz_questions WHERE event_id = $1`, [event.id]);
-      
+
       const parsedQuizData = typeof quiz_data === 'string' ? JSON.parse(quiz_data) : quiz_data;
       if (Array.isArray(parsedQuizData)) {
         for (let i = 0; i < parsedQuizData.length; i++) {
           const q = parsedQuizData[i];
           const qType = q.type || 'mcq';
           const points = q.points || 100;
-          
+
           const { rows: [insertedQ] } = await client.query(
             `INSERT INTO quiz_questions (event_id, question_text, type, correct_keywords, correct_option, explanation, points, position)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
             [event.id, q.question, qType, q.correct_keywords || [], q.correctIndex ?? 0, q.explanation || '', points, i]
           );
-          
+
           if (qType === 'mcq' && Array.isArray(q.options)) {
-             for (let j = 0; j < q.options.length; j++) {
-                await client.query(
-                  `INSERT INTO quiz_options (question_id, option_text, position) VALUES ($1, $2, $3)`,
-                  [insertedQ.id, q.options[j], j]
-                );
-             }
+            for (let j = 0; j < q.options.length; j++) {
+              await client.query(
+                `INSERT INTO quiz_options (question_id, option_text, position) VALUES ($1, $2, $3)`,
+                [insertedQ.id, q.options[j], j]
+              );
+            }
           }
         }
       }
@@ -347,6 +383,21 @@ app.post('/api/admin/events/:slug/quiz-toggle', requireAuth, async (req, res) =>
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: 'Failed to toggle quiz' });
+  }
+});
+
+// ── PUT /api/admin/events/:slug/quiz-state ───────────────────────
+app.put('/api/admin/events/:slug/quiz-state', requireAuth, async (req, res) => {
+  try {
+    const { quiz_state } = req.body;
+    const { rows: [event] } = await pool.query(
+      `UPDATE events SET quiz_state = $1 WHERE slug = $2 RETURNING slug, quiz_state`,
+      [JSON.stringify(quiz_state), req.params.slug]
+    );
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update quiz state' });
   }
 });
 

@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 
 const EventTimer = ({ eventDate }: { eventDate: string }) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [percentLeft, setPercentLeft] = useState(100);
   const target = new Date(eventDate.split("–")[0]);
 
   useEffect(() => {
@@ -59,7 +60,7 @@ const EventTimer = ({ eventDate }: { eventDate: string }) => {
 
 // --- EVENT QUIZ COMPONENT ---
 const EventQuiz = ({ eventSlug, quizData }: { eventSlug: string, quizData: any[] }) => {
-  const [step, setStep] = useState<'intro' | 'quiz' | 'result' | 'leaderboard'>('intro');
+  const [step, setStep] = useState<'intro' | 'lobby' | 'quiz' | 'result' | 'leaderboard'>('intro');
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0); // Cumulative points
   const [participantName, setParticipantName] = useState("");
@@ -68,9 +69,9 @@ const EventQuiz = ({ eventSlug, quizData }: { eventSlug: string, quizData: any[]
   const [timeTaken, setTimeTaken] = useState(0);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Animation states
-  const [feedback, setFeedback] = useState<'none'|'correct'|'wrong'>('none');
+  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [shortAns, setShortAns] = useState("");
 
   const startQuiz = () => {
@@ -82,7 +83,7 @@ const EventQuiz = ({ eventSlug, quizData }: { eventSlug: string, quizData: any[]
   const evaluateAnswer = (isCorrect: boolean) => {
     const points = quizData[currentQ].points || 100;
     if (isCorrect) setScore(s => s + points);
-    
+
     setFeedback(isCorrect ? 'correct' : 'wrong');
     setTimeout(() => {
       setFeedback('none');
@@ -142,24 +143,86 @@ const EventQuiz = ({ eventSlug, quizData }: { eventSlug: string, quizData: any[]
     } catch (e) { console.error(e); }
   };
 
+  // --- Real-time Sync Logic ---
+  const [sessionState, setSessionState] = useState<any>(null);
+  const [arenaParticipants, setArenaParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/events/${eventSlug}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const state = data.quiz_state || { status: 'idle' };
+        setSessionState(state);
+        setArenaParticipants(state.participants || []);
+
+        // Logic to move from intro -> lobby or lobby -> quiz
+        if (state.status === 'lobby' && step === 'intro' && participantName) {
+          // We might already be in lobby if we joined
+        }
+
+        if (state.status === 'active' && (step === 'intro' || step === 'lobby')) {
+          // Sync starting
+          if (participantName) {
+            setStep('quiz');
+            setStartTime(new Date(state.startTime).getTime());
+          }
+        }
+
+        if (state.status === 'active' && step === 'quiz') {
+          const elapsed = Math.floor((Date.now() - new Date(state.startTime).getTime()) / 1000);
+          if (elapsed >= state.timer) {
+            // Quiz time up!
+            setStep('leaderboard');
+            fetchLeaderboard();
+          }
+        }
+
+        if (state.status === 'finished' && step === 'quiz') {
+          setStep('leaderboard');
+          fetchLeaderboard();
+        }
+      } catch (e) { console.error("Poll error", e); }
+    };
+
+    poll(); // Initial poll
+    const id = setInterval(poll, 3000); // Poll every 3s
+    return () => clearInterval(id);
+  }, [eventSlug, step, participantName]);
+
+  const joinLobby = async () => {
+    if (!participantName.trim()) return alert("Enter your name!");
+    try {
+      const res = await fetch(`/api/events/${eventSlug}/quiz/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: participantName })
+      });
+      if (res.ok) {
+        setStep('lobby');
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const question = quizData[currentQ] || { question: "", options: [], type: "mcq", points: 100 };
 
   return (
     <div className="w-full bg-white rounded-[24px] sm:rounded-[36px] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-foreground/[0.06] mt-10 relative">
-      
+
       {/* Dynamic Feedback Overlay */}
       {feedback !== 'none' && (
         <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-          className={cn("absolute inset-0 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md", 
+          className={cn("absolute inset-0 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md",
             feedback === 'correct' ? "bg-[#34A853]/90" : "bg-[#EA4335]/90")}>
-          <motion.div animate={{ scale: [1, 1.2, 1], rotate: feedback==='correct' ? [0, 10, -10, 0] : [0, -10, 10, 0] }} transition={{ duration: 0.5 }} className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl mb-6">
+          <motion.div animate={{ scale: [1, 1.2, 1], rotate: feedback === 'correct' ? [0, 10, -10, 0] : [0, -10, 10, 0] }} transition={{ duration: 0.5 }} className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl mb-6">
             <span className="text-5xl">{feedback === 'correct' ? '🎉' : '💥'}</span>
           </motion.div>
           <h3 className="font-syne font-black text-white text-4xl mb-2 drop-shadow-md">
             {feedback === 'correct' ? 'Perfect Match!' : 'Missed It!'}
           </h3>
           <p className="font-dm font-bold text-white/90 text-lg">
-            {feedback === 'correct' ? `+ ${question.points||100} Points Added` : 'No points awarded'}
+            {feedback === 'correct' ? `+ ${question.points || 100} Points Added` : 'No points awarded'}
           </p>
           {feedback === 'wrong' && question.explanation && (
             <div className="mt-6 bg-black/20 p-4 rounded-[16px] max-w-sm text-center">
@@ -177,156 +240,213 @@ const EventQuiz = ({ eventSlug, quizData }: { eventSlug: string, quizData: any[]
             Challenge Arena <span className="text-3xl">⚔️</span>
           </h2>
           {step === 'quiz' && (
-            <div className="font-dm-mono font-bold text-sm bg-white/10 px-4 py-1.5 rounded-full border border-white/10 shadow-sm flex items-center gap-2">
-               <span className="text-[#34A853]">⭐ {score}</span>
-               <span className="w-px h-3 bg-white/20" />
-               <span>Q{currentQ + 1} / {quizData.length}</span>
+            <div className="font-dm-mono font-bold text-[10px] sm:text-xs bg-white/10 px-3 sm:px-4 py-1.5 rounded-full border border-white/10 shadow-sm flex items-center gap-2">
+              <span className="text-[#34A853]">⭐ {score}</span>
+              <span className="w-px h-3 bg-white/20" />
+              <span className="hidden sm:inline">Q{currentQ + 1} / {quizData.length}</span>
+              <span className="sm:hidden">{currentQ + 1}/{quizData.length}</span>
+              {sessionState?.status === 'active' && (
+                <>
+                  <span className="w-px h-3 bg-white/20" />
+                  <span className="text-[#EA4335] animate-pulse">
+                    {Math.max(0, sessionState.timer - Math.floor((Date.now() - new Date(sessionState.startTime).getTime()) / 1000))}s
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[40px] -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+
+        {/* TIMER PROGRESS BAR */}
+        {step === 'quiz' && sessionState?.status === 'active' && (
+          <div className="absolute bottom-0 left-0 h-1 bg-white/10 w-full overflow-hidden">
+            <motion.div
+              initial={{ width: "100%" }}
+              animate={{ width: `${Math.max(0, ((sessionState.timer - (Math.floor((Date.now() - new Date(sessionState.startTime).getTime()) / 1000))) / sessionState.timer) * 100)}%` }}
+              transition={{ duration: 1, ease: "linear" }}
+              className="h-full bg-[#4285F4]"
+            />
+          </div>
+        )}
       </div>
 
       <div className="p-6 sm:p-10 min-h-[300px] flex flex-col justify-center transition-all">
-        
+
         {step === 'intro' && (
-           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center max-w-md mx-auto">
-             <div className="w-20 h-20 bg-gradient-to-tr from-[#4285F4] to-[#34A853] rounded-3xl rotate-12 flex items-center justify-center mb-6 shadow-[0_10px_30px_rgba(66,133,244,0.3)]">
-               <span className="text-4xl -rotate-12">🎮</span>
-             </div>
-             <h3 className="font-syne font-bold text-ink text-2xl mb-2">Prove Your Knowledge</h3>
-             <p className="font-dm text-ink-muted text-sm mb-8">Compete against other attendees. Fast and accurate answers yield the highest scores required to dominate the leaderboard.</p>
-             
-             <div className="w-full space-y-3 mb-6">
-               <input value={participantName} onChange={e=>setParticipantName(e.target.value)} placeholder="Your Display Name (Required)" className="w-full bg-foreground/[0.03] border border-foreground/10 rounded-[12px] px-5 py-4 font-dm font-bold text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
-               <input value={participantEmail} onChange={e=>setParticipantEmail(e.target.value)} placeholder="Email Address (Optional)" className="w-full bg-foreground/[0.03] border border-foreground/10 rounded-[12px] px-5 py-3 font-dm text-sm text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
-             </div>
-             
-             <button onClick={startQuiz} className="w-full bg-ink text-white font-syne font-bold text-lg py-4 rounded-[16px] hover:scale-[1.02] hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-all active:scale-[0.98]">
-               Enter Arena →
-             </button>
-             <button onClick={fetchLeaderboard} className="mt-4 font-dm text-sm font-semibold text-ink-muted hover:text-ink transition-colors underline decoration-foreground/20 underline-offset-4">
-               Skip & View Leaderboard
-             </button>
-           </motion.div>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center max-w-md mx-auto">
+            <div className="w-20 h-20 bg-gradient-to-tr from-[#4285F4] to-[#34A853] rounded-3xl rotate-12 flex items-center justify-center mb-6 shadow-[0_10px_30px_rgba(66,133,244,0.3)]">
+              <span className="text-4xl -rotate-12">🎮</span>
+            </div>
+            <h3 className="font-syne font-bold text-ink text-2xl mb-2">Prove Your Knowledge</h3>
+            <p className="font-dm text-ink-muted text-sm mb-8">Compete against other attendees. Fast and accurate answers yield the highest scores required to dominate the leaderboard.</p>
+
+            <div className="w-full space-y-3 mb-6">
+              <input value={participantName} onChange={e => setParticipantName(e.target.value)} placeholder="Your Display Name (Required)" className="w-full bg-foreground/[0.03] border border-foreground/10 rounded-[12px] px-5 py-4 font-dm font-bold text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
+              <input value={participantEmail} onChange={e => setParticipantEmail(e.target.value)} placeholder="Email Address (Optional)" className="w-full bg-foreground/[0.03] border border-foreground/10 rounded-[12px] px-5 py-3 font-dm text-sm text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
+            </div>
+
+            <button onClick={joinLobby} className="w-full bg-ink text-white font-syne font-bold text-lg py-4 rounded-[16px] hover:scale-[1.02] hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-all active:scale-[0.98]">
+              Join Lobby →
+            </button>
+            <button onClick={fetchLeaderboard} className="mt-4 font-dm text-sm font-semibold text-ink-muted hover:text-ink transition-colors underline decoration-foreground/20 underline-offset-4">
+              Skip & View Leaderboard
+            </button>
+          </motion.div>
+        )}
+
+        {step === 'lobby' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center max-w-lg mx-auto py-6">
+            <div className="relative mb-10">
+              <div className="w-24 h-24 bg-[#4285F4]/10 rounded-full flex items-center justify-center animate-pulse">
+                <Users size={40} className="text-[#4285F4]" />
+              </div>
+              <div className="absolute -top-2 -right-2 bg-[#34A853] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">LIVE</div>
+            </div>
+
+            <h3 className="font-syne font-bold text-ink text-2xl mb-2">The Gathering</h3>
+            <p className="font-dm text-ink-muted text-sm mb-10">You're in the lobby! Wait for the admin to initiate the challenge. Watch others joining the arena below.</p>
+
+            <div className="flex flex-wrap justify-center gap-3 mb-10">
+              {arenaParticipants.map((p, i) => (
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: i * 0.05 }}
+                  key={i} className="bg-white border border-foreground/[0.08] px-4 py-2 rounded-full shadow-sm flex items-center gap-2 group">
+                  <div className="w-2 h-2 rounded-full bg-[#34A853] animate-pulse" />
+                  <span className="font-dm font-bold text-ink text-sm uppercase tracking-tight">{p.name}</span>
+                </motion.div>
+              ))}
+              {arenaParticipants.length === 0 && (
+                <p className="text-xs font-dm-mono text-ink-muted/50 uppercase tracking-widest">Awaiting participants...</p>
+              )}
+            </div>
+
+            <div className="w-full p-4 bg-foreground/[0.03] rounded-[20px] border border-foreground/[0.06] flex items-center justify-center gap-4">
+              <div className="flex gap-1">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="w-2 h-2 rounded-full bg-ink/20 animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+                ))}
+              </div>
+              <span className="font-dm font-semibold text-xs text-ink-muted uppercase tracking-widest">Waiting for admin to start...</span>
+            </div>
+          </motion.div>
         )}
 
         {step === 'quiz' && (
-           <div className="flex flex-col gap-8">
-             <div className="flex flex-col items-center text-center">
-               <span className="bg-[#FBBC04]/20 text-[#FBBC04] font-dm-mono font-bold text-xs px-3 py-1 rounded-full mb-4 inline-block shadow-sm">
-                  {question.points || 100} POINTS {question.type === "short" ? "• SHORT ANSWER" : "• MULTIPLE CHOICE"}
-               </span>
-               <h3 className="font-syne font-black text-ink text-2xl sm:text-3xl tracking-tight leading-snug">
-                 {question.question}
-               </h3>
-             </div>
-             
-             {(!question.type || question.type === 'mcq') && (
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 {question.options.map((opt: string, i: number) => {
-                   const colors = [
-                     "bg-[#EA4335] text-white hover:bg-[#D93025] hover:shadow-[0_4px_15px_rgba(234,67,53,0.3)]", 
-                     "bg-[#4285F4] text-white hover:bg-[#1A73E8] hover:shadow-[0_4px_15px_rgba(66,133,244,0.3)]", 
-                     "bg-[#FBBC04] text-ink hover:bg-[#F9AB00] hover:shadow-[0_4px_15px_rgba(251,188,4,0.3)]", 
-                     "bg-[#34A853] text-white hover:bg-[#1E8E3E] hover:shadow-[0_4px_15px_rgba(52,168,83,0.3)]"
-                   ];
-                   return (
-                     <button key={i} onClick={() => handleMcq(i)} 
-                       className={cn(
-                         "relative overflow-hidden p-6 rounded-[20px] font-dm font-bold text-lg sm:text-xl text-left flex items-center gap-4 transition-all active:scale-95 border-b-4 border-black/20", 
-                         colors[i % 4]
-                       )}>
-                       <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm shadow-inner flex items-center justify-center flex-shrink-0 text-sm font-black">
-                         {["A","B","C","D"][i]}
-                       </div>
-                       <span className="flex-1 drop-shadow-sm">{opt}</span>
-                     </button>
-                   );
-                 })}
-               </div>
-             )}
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col items-center text-center">
+              <span className="bg-[#FBBC04]/20 text-[#FBBC04] font-dm-mono font-bold text-xs px-3 py-1 rounded-full mb-4 inline-block shadow-sm">
+                {question.points || 100} POINTS {question.type === "short" ? "• SHORT ANSWER" : "• MULTIPLE CHOICE"}
+              </span>
+              <h3 className="font-syne font-black text-ink text-2xl sm:text-3xl tracking-tight leading-snug">
+                {question.question}
+              </h3>
+            </div>
 
-             {question.type === 'short' && (
-               <div className="flex flex-col gap-4">
-                 <input value={shortAns} onChange={e => setShortAns(e.target.value)} 
-                   onKeyDown={e => e.key === 'Enter' && handleShortAns()}
-                   autoFocus
-                   placeholder="Type your answer here..." 
-                   className="w-full bg-foreground/[0.02] border-2 border-foreground/10 rounded-[20px] px-6 py-5 font-dm font-bold text-xl text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
-                 <button onClick={handleShortAns} disabled={!shortAns.trim()}
-                   className="w-full sm:w-auto self-center bg-[#4285F4] text-white font-syne font-bold text-lg px-10 py-4 rounded-full hover:scale-105 transition-all shadow-[0_4px_20px_rgba(66,133,244,0.3)] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none">
-                   Submit Answer &rarr;
-                 </button>
-               </div>
-             )}
-           </div>
+            {(!question.type || question.type === 'mcq') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {question.options.map((opt: string, i: number) => {
+                  const colors = [
+                    "bg-[#EA4335] text-white hover:bg-[#D93025] hover:shadow-[0_4px_15px_rgba(234,67,53,0.3)]",
+                    "bg-[#4285F4] text-white hover:bg-[#1A73E8] hover:shadow-[0_4px_15px_rgba(66,133,244,0.3)]",
+                    "bg-[#FBBC04] text-ink hover:bg-[#F9AB00] hover:shadow-[0_4px_15px_rgba(251,188,4,0.3)]",
+                    "bg-[#34A853] text-white hover:bg-[#1E8E3E] hover:shadow-[0_4px_15px_rgba(52,168,83,0.3)]"
+                  ];
+                  return (
+                    <button key={i} onClick={() => handleMcq(i)}
+                      className={cn(
+                        "relative overflow-hidden p-6 rounded-[20px] font-dm font-bold text-lg sm:text-xl text-left flex items-center gap-4 transition-all active:scale-95 border-b-4 border-black/20",
+                        colors[i % 4]
+                      )}>
+                      <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm shadow-inner flex items-center justify-center flex-shrink-0 text-sm font-black">
+                        {["A", "B", "C", "D"][i]}
+                      </div>
+                      <span className="flex-1 drop-shadow-sm">{opt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {question.type === 'short' && (
+              <div className="flex flex-col gap-4">
+                <input value={shortAns} onChange={e => setShortAns(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleShortAns()}
+                  autoFocus
+                  placeholder="Type your answer here..."
+                  className="w-full bg-foreground/[0.02] border-2 border-foreground/10 rounded-[20px] px-6 py-5 font-dm font-bold text-xl text-ink text-center outline-none focus:border-[#4285F4] focus:bg-white transition-all shadow-inner" />
+                <button onClick={handleShortAns} disabled={!shortAns.trim()}
+                  className="w-full sm:w-auto self-center bg-[#4285F4] text-white font-syne font-bold text-lg px-10 py-4 rounded-full hover:scale-105 transition-all shadow-[0_4px_20px_rgba(66,133,244,0.3)] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none">
+                  Submit Answer &rarr;
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {step === 'result' && (
-           <div className="flex flex-col items-center justify-center py-10">
-             <div className="w-24 h-24 border-4 border-[#34A853]/20 border-t-[#34A853] rounded-full animate-spin mb-6" />
-             <h3 className="font-syne font-bold text-ink text-2xl animate-pulse">Computing final score...</h3>
-           </div>
+          <div className="flex flex-col items-center justify-center py-10">
+            <div className="w-24 h-24 border-4 border-[#34A853]/20 border-t-[#34A853] rounded-full animate-spin mb-6" />
+            <h3 className="font-syne font-bold text-ink text-2xl animate-pulse">Computing final score...</h3>
+          </div>
         )}
 
         {step === 'leaderboard' && (
-           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col min-h-[400px]">
-             <div className="flex items-end justify-between mb-8 border-b border-foreground/10 pb-4">
-                <h3 className="font-syne font-black text-ink text-3xl">Live Leaderboard 🏆</h3>
-                <span className="font-dm font-bold text-[#4285F4] bg-[#4285F4]/10 px-4 py-1.5 rounded-full text-sm">
-                  Top {leaderboard.length} Players
-                </span>
-             </div>
-             
-             {leaderboard.length === 0 ? (
-               <div className="flex-1 flex flex-col items-center justify-center text-center">
-                 <p className="font-dm text-ink-muted text-lg mb-4">No scores yet. Be the first to conquer the quiz!</p>
-                 <button onClick={() => setStep('intro')} className="bg-[#FBBC04] text-ink font-syne font-bold px-6 py-3 rounded-full hover:scale-105 transition-transform shadow-md">
-                   Take the Quiz
-                 </button>
-               </div>
-             ) : (
-               <div className="flex flex-col gap-3">
-                 {leaderboard.map((lb, i) => (
-                   <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                     key={i} className={cn(
-                       "flex items-center gap-4 p-4 rounded-[16px] border transition-all hover:scale-[1.01] overflow-hidden relative",
-                       i === 0 ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200 shadow-md" : 
-                       i === 1 ? "bg-slate-50 border-slate-200 shadow-sm" :
-                       i === 2 ? "bg-orange-50/50 border-orange-100 shadow-sm" : "bg-white border-foreground/[0.05] hover:border-foreground/20"
-                     )}>
-                     {i === 0 && <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/20 blur-[30px] rounded-full translate-x-10 -translate-y-10" />}
-                     <div className={cn(
-                       "w-12 h-12 rounded-full flex items-center justify-center font-syne font-black text-xl shadow-inner border-2",
-                       i === 0 ? "bg-yellow-400 text-yellow-900 border-yellow-300" :
-                       i === 1 ? "bg-slate-300 text-slate-800 border-slate-200" :
-                       i === 2 ? "bg-orange-300 text-orange-900 border-orange-200" : "bg-foreground/[0.04] text-ink-muted border-transparent"
-                     )}>
-                       #{i + 1}
-                     </div>
-                     <div className="flex-1 min-w-0 z-10">
-                       <h4 className="font-dm font-bold text-ink text-lg truncate flex items-center gap-2">
-                         {lb.participant_name} 
-                         {i === 0 && <span className="text-xl shadow-yellow-200 drop-shadow-md animate-bounce-slow">👑</span>}
-                       </h4>
-                       <p className="font-dm-mono text-xs text-ink-muted mt-0.5">{lb.time_taken_seconds}s total combat time</p>
-                     </div>
-                     <div className="flex flex-col items-end z-10">
-                       <span className="font-syne font-black text-3xl text-ink leading-none">{lb.score}</span>
-                       <span className="font-dm text-[10px] uppercase font-bold text-ink-muted mt-1 tracking-widest bg-white/50 px-2 py-0.5 rounded-full">PTS</span>
-                     </div>
-                   </motion.div>
-                 ))}
-                 
-                 <div className="mt-6 flex justify-center">
-                   <button onClick={() => { setParticipantName(""); setScore(0); setStep('intro'); }} className="font-dm text-sm font-bold text-ink bg-foreground/[0.03] border border-foreground/[0.08] hover:bg-foreground/[0.06] hover:shadow-sm px-6 py-3 rounded-full transition-all flex items-center gap-2">
-                     <ArrowLeft size={16}/> Re-enter Arena
-                   </button>
-                 </div>
-               </div>
-             )}
-           </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col min-h-[400px]">
+            <div className="flex items-end justify-between mb-8 border-b border-foreground/10 pb-4">
+              <h3 className="font-syne font-black text-ink text-3xl">Live Leaderboard 🏆</h3>
+              <span className="font-dm font-bold text-[#4285F4] bg-[#4285F4]/10 px-4 py-1.5 rounded-full text-sm">
+                Top {leaderboard.length} Players
+              </span>
+            </div>
+
+            {leaderboard.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <p className="font-dm text-ink-muted text-lg mb-4">No scores yet. Be the first to conquer the quiz!</p>
+                <button onClick={() => setStep('intro')} className="bg-[#FBBC04] text-ink font-syne font-bold px-6 py-3 rounded-full hover:scale-105 transition-transform shadow-md">
+                  Take the Quiz
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {leaderboard.map((lb, i) => (
+                  <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                    key={i} className={cn(
+                      "flex items-center gap-4 p-4 rounded-[16px] border transition-all hover:scale-[1.01] overflow-hidden relative",
+                      i === 0 ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200 shadow-md" :
+                        i === 1 ? "bg-slate-50 border-slate-200 shadow-sm" :
+                          i === 2 ? "bg-orange-50/50 border-orange-100 shadow-sm" : "bg-white border-foreground/[0.05] hover:border-foreground/20"
+                    )}>
+                    {i === 0 && <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/20 blur-[30px] rounded-full translate-x-10 -translate-y-10" />}
+                    <div className={cn(
+                      "w-12 h-12 rounded-full flex items-center justify-center font-syne font-black text-xl shadow-inner border-2",
+                      i === 0 ? "bg-yellow-400 text-yellow-900 border-yellow-300" :
+                        i === 1 ? "bg-slate-300 text-slate-800 border-slate-200" :
+                          i === 2 ? "bg-orange-300 text-orange-900 border-orange-200" : "bg-foreground/[0.04] text-ink-muted border-transparent"
+                    )}>
+                      #{i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0 z-10">
+                      <h4 className="font-dm font-bold text-ink text-lg truncate flex items-center gap-2">
+                        {lb.participant_name}
+                        {i === 0 && <span className="text-xl shadow-yellow-200 drop-shadow-md animate-bounce-slow">👑</span>}
+                      </h4>
+                      <p className="font-dm-mono text-xs text-ink-muted mt-0.5">{lb.time_taken_seconds}s total combat time</p>
+                    </div>
+                    <div className="flex flex-col items-end z-10">
+                      <span className="font-syne font-black text-3xl text-ink leading-none">{lb.score}</span>
+                      <span className="font-dm text-[10px] uppercase font-bold text-ink-muted mt-1 tracking-widest bg-white/50 px-2 py-0.5 rounded-full">PTS</span>
+                    </div>
+                  </motion.div>
+                ))}
+
+                <div className="mt-6 flex justify-center">
+                  <button onClick={() => { setParticipantName(""); setScore(0); setStep('intro'); }} className="font-dm text-sm font-bold text-ink bg-foreground/[0.03] border border-foreground/[0.08] hover:bg-foreground/[0.06] hover:shadow-sm px-6 py-3 rounded-full transition-all flex items-center gap-2">
+                    <ArrowLeft size={16} /> Re-enter Arena
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
         )}
 
       </div>
@@ -574,7 +694,7 @@ const EventDetail = () => {
             {/* HIGH PERFORMANCE QUIZ COMPONENT MOUNT */}
             {e.isQuizActive && e.quiz_data && (
               <FadeInSection delay={0.35}>
-                 <EventQuiz eventSlug={e.slug} quizData={safeParseArray(e.quiz_data)} />
+                <EventQuiz eventSlug={e.slug} quizData={safeParseArray(e.quiz_data)} />
               </FadeInSection>
             )}
 
@@ -653,7 +773,7 @@ const EventDetail = () => {
       )}>
         <button className={cn(
           "w-full py-4 rounded-[16px] font-dm font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2",
-          new Date(e.date.split("–")[0]).getTime() < Date.now() 
+          new Date(e.date.split("–")[0]).getTime() < Date.now()
             ? "bg-foreground/[0.05] text-ink-muted cursor-not-allowed"
             : "bg-[#0F1115] text-white active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.2)]"
         )}>

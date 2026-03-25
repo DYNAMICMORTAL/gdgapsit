@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Link, Navigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -22,7 +22,6 @@ import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import Calendar from "./pages/Calendar";
 import Skills from "./pages/Skills";
-import Certificates from "./pages/Certificates";
 import EventQuiz from "./pages/EventQuiz";
 import NotFound from "./pages/NotFound";
 
@@ -104,7 +103,7 @@ const AnimatedRoutes = () => {
             <Route path="/contact" element={<Contact />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/skills" element={<Skills />} />
-            <Route path="/certificates" element={<Certificates />} />
+            <Route path="/certificates" element={<Navigate to="/admin" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/gdg" element={<SecretGDGPage />} />

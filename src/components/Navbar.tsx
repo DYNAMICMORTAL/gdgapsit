@@ -142,8 +142,8 @@ export default function Navbar() {
                 {[
                   { icon: Github, href: "https://github.com/gdg-apsit" },
                   { icon: Linkedin, href: "https://linkedin.com/company/gdg-apsit" },
-                  { icon: Instagram, href: "https://instagram.com/gdgapsit" },
-                  { icon: Globe, href: "https://gdg.community.dev" },
+                  { icon: Instagram, href: "https://www.instagram.com/gdg.apsit/" },
+                  { icon: Globe, href: "https://gdg.community.dev/gdg-on-campus-ap-shah-institute-of-technology-thane-india/" },
                 ].map(s => (
                   <a key={s.href} href={s.href} target="_blank" rel="noopener noreferrer"
                     className="w-10 h-10 rounded-full bg-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.15] transition-all">

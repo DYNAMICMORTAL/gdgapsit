@@ -31,36 +31,39 @@ async function apiFetch(path: string, options: RequestInit = {}) {
 
 // ── Public ──────────────────────────────────────────────────────────────────
 export const api = {
-  getEvents: ()                  => apiFetch('/events'),
-  getEvent:  (slug: string)      => apiFetch(`/events/${slug}`),
-  getTeam:   ()                  => apiFetch('/team'),
-  getGallery:()                  => apiFetch('/gallery'),
-  getQuiz:   (slug: string)      => apiFetch(`/quiz/${slug}`),
-  getSettings:()                 => apiFetch('/settings'),
+  getEvents: () => apiFetch('/events'),
+  getEvent: (slug: string) => apiFetch(`/events/${slug}`),
+  getTeam: () => apiFetch('/team'),
+  getGallery: () => apiFetch('/gallery'),
+  getQuiz: (slug: string) => apiFetch(`/quiz/${slug}`),
+  getSettings: () => apiFetch('/settings'),
 
   // ── Admin ────────────────────────────────────────────────────────────────
-  login:     (email: string, password: string) =>
+  login: (email: string, password: string) =>
     apiFetch('/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
   admin: {
-    getStats:  ()                     => apiFetch('/admin/stats'),
-    getEvents: ()                     => apiFetch('/admin/events'),
-    createEvent: (data: object)       => apiFetch('/admin/events', { method: 'POST', body: JSON.stringify(data) }),
+    getStats: () => apiFetch('/admin/stats'),
+    getEvents: () => apiFetch('/admin/events'),
+    createEvent: (data: object) => apiFetch('/admin/events', { method: 'POST', body: JSON.stringify(data) }),
     updateEvent: (slug: string, data: object) =>
       apiFetch(`/admin/events/${slug}`, { method: 'PUT', body: JSON.stringify(data) }),
-    deleteEvent: (slug: string)       => apiFetch(`/admin/events/${slug}`, { method: 'DELETE' }),
-    toggleQuiz:  (slug: string, enabled: boolean) =>
+    deleteEvent: (slug: string) => apiFetch(`/admin/events/${slug}`, { method: 'DELETE' }),
+    toggleQuiz: (slug: string, enabled: boolean) =>
       apiFetch(`/admin/events/${slug}/quiz-toggle`, { method: 'POST', body: JSON.stringify({ enabled }) }),
 
-    createMember: (data: object)      => apiFetch('/admin/team', { method: 'POST', body: JSON.stringify(data) }),
+    createMember: (data: object) => apiFetch('/admin/team', { method: 'POST', body: JSON.stringify(data) }),
     updateMember: (id: number, data: object) =>
       apiFetch(`/admin/team/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    deleteMember: (id: number)        => apiFetch(`/admin/team/${id}`, { method: 'DELETE' }),
+    deleteMember: (id: number) => apiFetch(`/admin/team/${id}`, { method: 'DELETE' }),
 
-    addGalleryItem: (data: object)    => apiFetch('/admin/gallery', { method: 'POST', body: JSON.stringify(data) }),
-    deleteGalleryItem: (id: number)   => apiFetch(`/admin/gallery/${id}`, { method: 'DELETE' }),
+    addGalleryItem: (data: object) => apiFetch('/admin/gallery', { method: 'POST', body: JSON.stringify(data) }),
+    deleteGalleryItem: (id: number) => apiFetch(`/admin/gallery/${id}`, { method: 'DELETE' }),
 
-    saveSettings: (data: object)      =>
+    saveSettings: (data: object) =>
       apiFetch('/admin/settings', { method: 'PUT', body: JSON.stringify(data) }),
+
+    updateQuizState: (slug: string, quiz_state: object) =>
+      apiFetch(`/admin/events/${slug}/quiz-state`, { method: 'PUT', body: JSON.stringify({ quiz_state }) }),
   },
 };
